@@ -185,6 +185,7 @@ export class GestureController {
     const middleMcp = hand[9];
     const x = clamp((wrist.x + middleMcp.x) / 2, 0, 1);
     const y = clamp((wrist.y + middleMcp.y) / 2, 0, 1);
+    const depth = (wrist.z + middleMcp.z) / 2;
     const interpretation = this.interpretHandPose(hand, modelGesture?.categoryName, modelGesture?.score);
     const handLabel = normalizeHandedness(handedness?.categoryName);
 
@@ -194,6 +195,9 @@ export class GestureController {
       confidence: interpretation.confidence,
       x,
       y,
+      depth,
+      openPalm: interpretation.openPalm,
+      secretSeal: interpretation.secretSeal,
     };
   }
 
@@ -206,7 +210,9 @@ export class GestureController {
     const indexMcp = hand[5];
     const indexPip = hand[6];
     const indexTip = hand[8];
+    const thumbTip = hand[4];
     const middleMcp = hand[9];
+    const middlePip = hand[10];
     const middleTip = hand[12];
     const ringMcp = hand[13];
     const ringTip = hand[16];
@@ -215,15 +221,20 @@ export class GestureController {
 
     const handScale = Math.max(0.08, distance(wrist, middleMcp));
     const indexExtended = this.isFingerExtended(wrist, indexMcp, indexPip, indexTip, handScale);
+    const middleExtended = this.isFingerExtended(wrist, middleMcp, middlePip, middleTip, handScale);
     const middleCurled = this.isFingerCurled(wrist, middleMcp, middleTip, handScale);
     const ringCurled = this.isFingerCurled(wrist, ringMcp, ringTip, handScale);
     const pinkyCurled = this.isFingerCurled(wrist, pinkyMcp, pinkyTip, handScale);
     const isolatedIndex = indexExtended && middleCurled && ringCurled && pinkyCurled;
+    const thumbIndexPinch = distance(thumbTip, indexTip) < handScale * 0.52;
+    const secretSeal = thumbIndexPinch && middleExtended && ringCurled && pinkyCurled;
 
     if (modelGesture === 'Closed_Fist') {
       return {
         gesture: 'Closed Fist',
         confidence: modelConfidence ?? 0.9,
+        openPalm: false,
+        secretSeal: false,
       };
     }
 
@@ -231,6 +242,17 @@ export class GestureController {
       return {
         gesture: 'Open Palm',
         confidence: modelConfidence ?? 0.8,
+        openPalm: true,
+        secretSeal: false,
+      };
+    }
+
+    if (secretSeal) {
+      return {
+        gesture: 'Secret Seal',
+        confidence: clamp(0.74 + (thumbIndexPinch ? 0.12 : 0) + (middleExtended ? 0.08 : 0), 0, 0.99),
+        openPalm: false,
+        secretSeal: true,
       };
     }
 
@@ -241,6 +263,8 @@ export class GestureController {
         return {
           gesture: 'Point Up',
           confidence: clamp(0.72 + Math.abs(directionY) / (handScale * 2.2), 0, 0.99),
+          openPalm: false,
+          secretSeal: false,
         };
       }
     }
@@ -248,6 +272,8 @@ export class GestureController {
     return {
       gesture: 'Hold',
       confidence: modelConfidence ?? 0.55,
+      openPalm: false,
+      secretSeal: false,
     };
   }
 

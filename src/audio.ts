@@ -94,6 +94,16 @@ export class AudioEngine {
         case 'player-down':
           this.sequence(offset, [190, 150, 110], 0.2, 0.06, 'sawtooth');
           break;
+        case 'special-fire':
+          this.sequence(offset, [220, 330, 494, 740], 0.18, 0.08, 'sawtooth');
+          this.pulse(offset + 0.05, {
+            waveform: 'triangle',
+            fromHz: 880,
+            toHz: 120,
+            duration: 0.28,
+            gain: 0.07,
+          });
+          break;
       }
     });
   }

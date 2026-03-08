@@ -1,5 +1,5 @@
 import type { GameAssets } from './assets';
-import type { CommandState, GameEvent, HudSnapshot } from './types';
+import type { CommandState, GameEvent, HudSnapshot, SecretTechniqueState, TechniqueAnchor } from './types';
 
 interface PlayerState {
   x: number;
@@ -178,6 +178,17 @@ const TRANSITION_DELAY_MS = 2200;
 const SHELL_LIFE = 0.65;
 const FLASH_LIFE = 0.18;
 const TRACER_LIFE = 0.08;
+const EMPTY_TECHNIQUE: SecretTechniqueState = {
+  phase: 'idle',
+  label: 'Idle',
+  akaCharge: 0,
+  aoCharge: 0,
+  fusionCharge: 0,
+  purpleCharge: 0,
+  fired: false,
+  leftAnchor: null,
+  rightAnchor: null,
+};
 
 export class RetroShooterGame {
   private readonly canvas: HTMLCanvasElement;
@@ -206,12 +217,15 @@ export class RetroShooterGame {
   private recoilKick = 0;
   private screenShake = 0;
   private damageFlash = 0;
+  private violetFlash = 0;
   private hitMarker = 0;
   private levelBanner = 0;
+  private violetBeamLife = 0;
   private shells: ShellParticle[] = [];
   private flashes: FlashParticle[] = [];
   private tracers: TracerParticle[] = [];
   private pendingEvents: GameEvent[] = [];
+  private activeTechnique: SecretTechniqueState = { ...EMPTY_TECHNIQUE };
 
   constructor(canvas: HTMLCanvasElement, assets: GameAssets) {
     this.canvas = canvas;
@@ -250,17 +264,21 @@ export class RetroShooterGame {
     this.recoilKick = 0;
     this.screenShake = 0;
     this.damageFlash = 0;
+    this.violetFlash = 0;
     this.hitMarker = 0;
     this.levelBanner = 0;
+    this.violetBeamLife = 0;
     this.shells = [];
     this.flashes = [];
     this.tracers = [];
     this.pendingEvents = [];
+    this.activeTechnique = { ...EMPTY_TECHNIQUE };
     this.loadLevel(0, false);
     this.render(this.currentLevel.mission);
   }
 
   update(deltaSeconds: number, commands: CommandState) {
+    this.activeTechnique = commands.special;
     this.updateEffects(deltaSeconds);
 
     if (this.gameWon) {
@@ -303,6 +321,10 @@ export class RetroShooterGame {
     if (commands.fire && this.fireCooldown === 0) {
       this.fireOnce();
       this.fireCooldown = FIRE_COOLDOWN;
+    }
+
+    if (commands.special.fired) {
+      this.fireVioletBeam();
     }
 
     this.updateEnemies(deltaSeconds);
@@ -461,14 +483,66 @@ export class RetroShooterGame {
     this.spawnTracer(impactX, impactY);
     this.spawnScreenFlashes(impactX, impactY, '#ff7d52', 10, 1);
 
-    if (this.killsThisLevel >= this.currentLevel.targetKills) {
-      this.transitionEndsAt = performance.now() + TRANSITION_DELAY_MS;
-      this.transitionMessage =
-        this.currentLevelIndex === LEVELS.length - 1
-          ? 'Core stable. Final sector complete.'
-          : `${this.currentLevel.name} clear. Redirecting to ${LEVELS[this.currentLevelIndex + 1].name}.`;
-      this.pendingEvents.push({ type: 'level-clear' });
+    this.checkLevelClear();
+  }
+
+  private fireVioletBeam() {
+    this.pendingEvents.push({ type: 'special-fire' });
+    this.violetBeamLife = 0.42;
+    this.violetFlash = 0.8;
+    this.screenShake = Math.max(this.screenShake, 9.5);
+    this.hitMarker = 0.22;
+    this.spawnScreenFlashes(this.width / 2, this.viewportHeight / 2, '#cc84ff', 28, 1.45);
+
+    let kills = 0;
+
+    for (const enemy of this.enemies) {
+      if (!enemy.alive) {
+        continue;
+      }
+
+      const dx = enemy.x - this.player.x;
+      const dy = enemy.y - this.player.y;
+      const distance = Math.hypot(dx, dy);
+      const angleToEnemy = Math.atan2(dy, dx);
+      const relativeAngle = normalizeAngle(angleToEnemy - this.player.angle);
+      const wallDistance = this.castRay(angleToEnemy).distance;
+
+      if (Math.abs(relativeAngle) > 0.28 || distance > 15.5 || wallDistance + 0.2 < distance) {
+        continue;
+      }
+
+      enemy.alive = false;
+      enemy.respawnAt = performance.now() + this.currentLevel.respawnDelayMs;
+      this.player.score += 250;
+      this.killsThisLevel += 1;
+      kills += 1;
+
+      const impactX = ((relativeAngle + FOV / 2) / FOV) * this.width;
+      const impactY =
+        this.viewportHeight / 2 -
+        Math.min(this.viewportHeight * 0.2, (this.viewportHeight / distance) * 0.1);
+      this.spawnScreenFlashes(impactX, impactY, '#c86fff', 14, 1.2);
     }
+
+    if (kills === 0) {
+      this.spawnScreenFlashes(this.width / 2, this.viewportHeight / 2, '#8e5bff', 10, 0.85);
+    }
+
+    this.checkLevelClear();
+  }
+
+  private checkLevelClear() {
+    if (this.killsThisLevel < this.currentLevel.targetKills || this.transitionEndsAt > 0) {
+      return;
+    }
+
+    this.transitionEndsAt = performance.now() + TRANSITION_DELAY_MS;
+    this.transitionMessage =
+      this.currentLevelIndex === LEVELS.length - 1
+        ? 'Core stable. Final sector complete.'
+        : `${this.currentLevel.name} clear. Redirecting to ${LEVELS[this.currentLevelIndex + 1].name}.`;
+    this.pendingEvents.push({ type: 'level-clear' });
   }
 
   private spawnShell() {
@@ -514,8 +588,10 @@ export class RetroShooterGame {
     this.recoilKick = Math.max(0, this.recoilKick - deltaSeconds * 8);
     this.screenShake = Math.max(0, this.screenShake - deltaSeconds * 10);
     this.damageFlash = Math.max(0, this.damageFlash - deltaSeconds * 1.8);
+    this.violetFlash = Math.max(0, this.violetFlash - deltaSeconds * 2.6);
     this.hitMarker = Math.max(0, this.hitMarker - deltaSeconds * 2.6);
     this.levelBanner = Math.max(0, this.levelBanner - deltaSeconds);
+    this.violetBeamLife = Math.max(0, this.violetBeamLife - deltaSeconds);
 
     this.shells = this.shells
       .map((shell) => ({
@@ -721,6 +797,8 @@ export class RetroShooterGame {
     }
 
     this.renderEnemies();
+    this.renderTechniqueCharge();
+    this.renderVioletBeam();
     this.renderTracers();
     this.renderWeapon();
     this.renderCrosshair();
@@ -820,6 +898,173 @@ export class RetroShooterGame {
       this.ctx.drawImage(this.assets.enemySprite, left, top, spriteWidth, spriteHeight);
       this.ctx.restore();
     });
+  }
+
+  private renderTechniqueCharge() {
+    if (this.activeTechnique.phase === 'idle' && this.violetBeamLife <= 0) {
+      return;
+    }
+
+    if (this.activeTechnique.akaCharge > 0.04 && this.activeTechnique.leftAnchor) {
+      this.renderTechniqueOrb(
+        this.activeTechnique.leftAnchor,
+        this.activeTechnique.akaCharge,
+        '#ff4c4c',
+        '#ff9a63',
+        1.2,
+      );
+    }
+
+    if (this.activeTechnique.aoCharge > 0.04 && this.activeTechnique.rightAnchor) {
+      this.renderTechniqueOrb(
+        this.activeTechnique.rightAnchor,
+        this.activeTechnique.aoCharge,
+        '#529dff',
+        '#80d2ff',
+        -1.15,
+      );
+    }
+
+    if (
+      (this.activeTechnique.fusionCharge > 0.05 || this.activeTechnique.purpleCharge > 0.04) &&
+      this.activeTechnique.leftAnchor &&
+      this.activeTechnique.rightAnchor
+    ) {
+      this.renderFusionBridge();
+    }
+
+    if (this.activeTechnique.purpleCharge > 0.04) {
+      const anchor = this.getPurpleAnchor();
+      this.renderTechniqueOrb(
+        anchor,
+        this.activeTechnique.purpleCharge,
+        '#a756ff',
+        '#f19bff',
+        1.8,
+      );
+    }
+  }
+
+  private renderTechniqueOrb(
+    anchor: TechniqueAnchor,
+    charge: number,
+    innerColor: string,
+    outerColor: string,
+    drift: number,
+  ) {
+    const x = anchor.x * this.width;
+    const y = anchor.y * this.viewportHeight;
+    const radius = 10 + charge * 18;
+    const glow = this.ctx.createRadialGradient(x, y, 0, x, y, radius * 1.9);
+    glow.addColorStop(0, `${outerColor}f0`);
+    glow.addColorStop(0.32, `${innerColor}cc`);
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = 'screen';
+    this.ctx.fillStyle = glow;
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, radius * 1.9, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    for (let index = 0; index < 18; index += 1) {
+      const angle = this.totalTime * (2.8 + charge * 2.2) * drift + (index / 18) * Math.PI * 2;
+      const orbit = radius * (1.1 + ((index % 3) * 0.16)) * (1 - charge * 0.2);
+      const px = x + Math.cos(angle) * orbit;
+      const py = y + Math.sin(angle * 1.15) * orbit;
+      const size = 1.5 + charge * 2.8;
+
+      this.ctx.globalAlpha = 0.42 + charge * 0.48;
+      this.ctx.fillStyle = index % 2 === 0 ? innerColor : outerColor;
+      this.ctx.fillRect(px, py, size, size);
+    }
+
+    this.ctx.globalAlpha = 0.88;
+    this.ctx.fillStyle = '#fff7ff';
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, radius * 0.36, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.restore();
+  }
+
+  private renderFusionBridge() {
+    const left = this.activeTechnique.leftAnchor!;
+    const right = this.activeTechnique.rightAnchor!;
+    const startX = left.x * this.width;
+    const startY = left.y * this.viewportHeight;
+    const endX = right.x * this.width;
+    const endY = right.y * this.viewportHeight;
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2;
+    const pulse = this.activeTechnique.fusionCharge + this.activeTechnique.purpleCharge * 0.45;
+
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = 'screen';
+    this.ctx.strokeStyle = `rgba(184, 114, 255, ${0.24 + pulse * 0.36})`;
+    this.ctx.lineWidth = 4 + pulse * 6;
+    this.ctx.beginPath();
+    this.ctx.moveTo(startX, startY);
+    this.ctx.quadraticCurveTo(
+      midX,
+      midY - 20 - Math.sin(this.totalTime * 5) * 8,
+      endX,
+      endY,
+    );
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  private renderVioletBeam() {
+    if (this.violetBeamLife <= 0) {
+      return;
+    }
+
+    const alpha = this.violetBeamLife / 0.42;
+    const startX = this.width / 2;
+    const startY = this.viewportHeight - 70;
+    const endX = this.width / 2 + Math.sin(this.totalTime * 22) * 4;
+    const endY = -24;
+    const nearWidth = 56 + alpha * 24;
+    const farWidth = 12 + alpha * 9;
+
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = 'screen';
+
+    const beam = this.ctx.createLinearGradient(startX, startY, endX, endY);
+    beam.addColorStop(0, `rgba(250, 202, 255, ${0.72 * alpha})`);
+    beam.addColorStop(0.3, `rgba(181, 104, 255, ${0.86 * alpha})`);
+    beam.addColorStop(1, `rgba(89, 33, 255, ${0.58 * alpha})`);
+
+    this.ctx.fillStyle = beam;
+    this.ctx.beginPath();
+    this.ctx.moveTo(startX - nearWidth, startY);
+    this.ctx.lineTo(startX + nearWidth, startY);
+    this.ctx.lineTo(endX + farWidth, endY);
+    this.ctx.lineTo(endX - farWidth, endY);
+    this.ctx.closePath();
+    this.ctx.fill();
+
+    this.ctx.fillStyle = `rgba(255, 241, 255, ${0.68 * alpha})`;
+    this.ctx.beginPath();
+    this.ctx.moveTo(startX - nearWidth * 0.28, startY);
+    this.ctx.lineTo(startX + nearWidth * 0.28, startY);
+    this.ctx.lineTo(endX + farWidth * 0.32, endY);
+    this.ctx.lineTo(endX - farWidth * 0.32, endY);
+    this.ctx.closePath();
+    this.ctx.fill();
+
+    this.ctx.restore();
+  }
+
+  private getPurpleAnchor() {
+    if (this.activeTechnique.rightAnchor) {
+      return {
+        x: this.activeTechnique.rightAnchor.x * 0.72 + 0.14,
+        y: this.activeTechnique.rightAnchor.y * 0.8 + 0.04,
+      };
+    }
+
+    return { x: 0.62, y: 0.48 };
   }
 
   private renderTracers() {
@@ -1014,6 +1259,12 @@ export class RetroShooterGame {
     if (this.damageFlash > 0) {
       this.ctx.globalAlpha = this.damageFlash * 0.5;
       this.ctx.fillStyle = '#ff5137';
+      this.ctx.fillRect(0, 0, this.width, this.viewportHeight);
+    }
+
+    if (this.violetFlash > 0) {
+      this.ctx.globalAlpha = this.violetFlash * 0.45;
+      this.ctx.fillStyle = '#b56cff';
       this.ctx.fillRect(0, 0, this.width, this.viewportHeight);
     }
 

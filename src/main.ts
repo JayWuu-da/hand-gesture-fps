@@ -4,7 +4,8 @@ import { AudioEngine } from './audio';
 import { loadGameAssets } from './assets';
 import { RetroShooterGame } from './game';
 import { GestureController } from './gesture-controller';
-import type { CommandState, HudSnapshot } from './types';
+import { SecretTechniqueController } from './secret-technique';
+import type { CommandState, GestureFrame, HudSnapshot, SecretTechniqueState } from './types';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="shell">
@@ -167,6 +168,7 @@ const hudWave = document.querySelector<HTMLElement>('#hud-wave')!;
 
 const gestures = new GestureController(video, overlay);
 const audio = new AudioEngine();
+const secretTechnique = new SecretTechniqueController();
 const keyboard = { forward: false, turnLeft: false, turnRight: false, fire: false };
 
 let game: RetroShooterGame | null = null;
@@ -192,8 +194,7 @@ async function bootstrap() {
   }
 }
 
-function mapInput(): CommandState {
-  const frame = webcamStarted ? gestures.sample() : null;
+function mapInput(frame: GestureFrame | null, special: SecretTechniqueState): CommandState {
   const leftHand = frame?.hands.find((hand) => hand.handedness === 'Left');
   const rightHand = frame?.hands.find((hand) => hand.handedness === 'Right');
   const unknownHands = frame?.hands.filter((hand) => hand.handedness === 'Unknown') ?? [];
@@ -213,6 +214,7 @@ function mapInput(): CommandState {
     turn: clamp(turnFromGesture + keyboardTurn * 0.8, -1, 1),
     gesture: frame?.gesture ?? 'No hands',
     confidence: frame?.confidence ?? 0,
+    special,
   };
 
   gestureName.textContent = commands.gesture;
@@ -268,6 +270,7 @@ async function toggleCamera() {
 
   if (webcamStarted) {
     gestures.stop();
+    secretTechnique.reset();
     webcamStarted = false;
     cameraStatus.textContent = 'Idle';
     startButton.textContent = 'Enable Camera';
@@ -293,6 +296,7 @@ async function toggleCamera() {
 async function restartArena() {
   if (!game) return;
   await audio.prime();
+  secretTechnique.reset();
   game.reset();
   updateUi(webcamStarted ? 'Run reset. Sector one is live.' : 'Run reset. Camera is still off.', hasKeyboardInput());
 }
@@ -303,11 +307,14 @@ function frameLoop(now: number) {
   const rawDeltaSeconds = Math.min(0.033, (now - lastTime) / 1000);
   lastTime = now;
 
-  const commands = mapInput();
+  const frame = webcamStarted ? gestures.sample() : null;
+  const special = secretTechnique.update(frame, rawDeltaSeconds);
+  const commands = mapInput(frame, special);
   const keyboardActive = hasKeyboardInput();
   const isGameplayActive = commands.hasHand || keyboardActive;
-  const status =
-    !webcamStarted
+  const status = special.phase !== 'idle' && special.phase !== 'cooldown'
+    ? special.label
+    : !webcamStarted
       ? keyboardActive
         ? 'Keyboard fallback active. Camera can stay off.'
         : 'Camera off. Turn it on, raise both hands, and enter the arena.'
@@ -386,6 +393,7 @@ window.addEventListener('keyup', (event) => {
 window.addEventListener('beforeunload', () => {
   cancelAnimationFrame(animationFrame);
   gestures.stop();
+  secretTechnique.reset();
 });
 
 bootstrap();

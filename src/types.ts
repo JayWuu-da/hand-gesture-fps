@@ -4,6 +4,9 @@ export interface HandPose {
   confidence: number;
   x: number;
   y: number;
+  depth: number;
+  openPalm: boolean;
+  secretSeal: boolean;
 }
 
 export interface GestureFrame {
@@ -22,9 +25,36 @@ export interface CommandState {
   turn: number;
   gesture: string;
   confidence: number;
+  special: SecretTechniqueState;
 }
 
 export type GamePhase = 'live' | 'transition' | 'won' | 'lost';
+
+export type SecretTechniquePhase =
+  | 'idle'
+  | 'aka'
+  | 'ao'
+  | 'dual'
+  | 'fusion'
+  | 'purple'
+  | 'cooldown';
+
+export interface TechniqueAnchor {
+  x: number;
+  y: number;
+}
+
+export interface SecretTechniqueState {
+  phase: SecretTechniquePhase;
+  label: string;
+  akaCharge: number;
+  aoCharge: number;
+  fusionCharge: number;
+  purpleCharge: number;
+  fired: boolean;
+  leftAnchor: TechniqueAnchor | null;
+  rightAnchor: TechniqueAnchor | null;
+}
 
 export type GameEventType =
   | 'shot'
@@ -34,7 +64,8 @@ export type GameEventType =
   | 'level-start'
   | 'level-clear'
   | 'run-complete'
-  | 'player-down';
+  | 'player-down'
+  | 'special-fire';
 
 export interface GameEvent {
   type: GameEventType;
