@@ -1,5 +1,5 @@
 import type { GameAssets } from './assets';
-import type { CommandState, HudSnapshot } from './types';
+import type { CommandState, GameEvent, HudSnapshot } from './types';
 
 interface PlayerState {
   x: number;
@@ -38,6 +38,7 @@ interface LevelDefinition {
   ceilingBottom: string;
   floorTop: string;
   floorBottom: string;
+  accent: string;
 }
 
 interface ShellParticle {
@@ -60,118 +61,123 @@ interface FlashParticle {
   color: string;
 }
 
+interface TracerParticle {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  life: number;
+  width: number;
+  color: string;
+}
+
 const LEVELS: LevelDefinition[] = [
   {
     name: 'Sector 01',
-    mission: 'Clear the dock ring and wake up the controls.',
+    mission: 'Break into the hangar lane and erase the first patrol.',
     mapRows: [
-      '111111111111',
-      '100000000001',
-      '101111011101',
-      '100001000001',
-      '101101110101',
-      '100100000101',
-      '110101011101',
-      '100001000001',
-      '101111011101',
-      '100000000001',
-      '101101111101',
-      '111111111111',
+      '11111111111111',
+      '10000000000001',
+      '10111101111101',
+      '10000000000001',
+      '10110111101101',
+      '10000000000001',
+      '10111101111101',
+      '10000000000001',
+      '10110100001101',
+      '10000000000001',
+      '10111111111101',
+      '11111111111111',
     ],
-    start: { x: 1.5, y: 1.5, angle: 0.2 },
-    enemySpawns: [
-      { x: 9.5, y: 2.5 },
-      { x: 8.5, y: 7.5 },
-      { x: 3.5, y: 9.5 },
-    ],
+    start: { x: 2.1, y: 5.5, angle: 0 },
+    enemySpawns: [{ x: 7.6, y: 5.5 }, { x: 10.4, y: 3.4 }, { x: 10.5, y: 7.5 }],
     targetKills: 4,
-    enemySpeed: 0.85,
+    enemySpeed: 0.92,
     enemyDamage: 8,
-    respawnDelayMs: 2400,
-    ceilingTop: '#201431',
-    ceilingBottom: '#0b0811',
-    floorTop: '#643214',
-    floorBottom: '#190904',
+    respawnDelayMs: 2200,
+    ceilingTop: '#24152d',
+    ceilingBottom: '#08060c',
+    floorTop: '#6f3515',
+    floorBottom: '#170803',
+    accent: '#ffb55f',
   },
   {
     name: 'Sector 02',
-    mission: 'Push through the crucible hall before they regroup.',
+    mission: 'Circle the furnace loop before the corridor closes around you.',
     mapRows: [
-      '111111111111',
-      '100010000001',
-      '101010111101',
-      '101000100001',
-      '101110101101',
-      '100000101001',
-      '111010101101',
-      '100010001001',
-      '101111101101',
-      '100000001001',
-      '101111111101',
-      '111111111111',
+      '11111111111111',
+      '10000010000001',
+      '10111010111101',
+      '10001010000101',
+      '11101011110101',
+      '10001000010101',
+      '10111111010101',
+      '10000001000101',
+      '10111101110101',
+      '10000000000101',
+      '10111111111101',
+      '11111111111111',
     ],
-    start: { x: 1.5, y: 1.5, angle: 0.35 },
-    enemySpawns: [
-      { x: 9.5, y: 1.8 },
-      { x: 7.5, y: 4.5 },
-      { x: 3.5, y: 7.5 },
-      { x: 9.5, y: 9.2 },
-    ],
+    start: { x: 2.0, y: 1.8, angle: 0.35 },
+    enemySpawns: [{ x: 6.6, y: 1.8 }, { x: 10.5, y: 3.5 }, { x: 10.5, y: 8.6 }, { x: 4.5, y: 9.2 }],
     targetKills: 6,
-    enemySpeed: 1.02,
+    enemySpeed: 1.06,
     enemyDamage: 10,
-    respawnDelayMs: 2100,
-    ceilingTop: '#2c1224',
-    ceilingBottom: '#0d070d',
-    floorTop: '#713214',
-    floorBottom: '#1d0a04',
+    respawnDelayMs: 1800,
+    ceilingTop: '#351725',
+    ceilingBottom: '#0f070b',
+    floorTop: '#7a330f',
+    floorBottom: '#1c0903',
+    accent: '#ff8d59',
   },
   {
     name: 'Sector 03',
-    mission: 'Hold the core lane and survive the final surge.',
+    mission: 'Enter the core floor, hold the center, and survive the surge.',
     mapRows: [
-      '111111111111',
-      '100000100001',
-      '101110101101',
-      '100010101001',
-      '111010101101',
-      '100010001001',
-      '101111101101',
-      '101000001001',
-      '101011111101',
-      '100000000001',
-      '111101111101',
-      '111111111111',
+      '11111111111111',
+      '10000000000001',
+      '10111101111101',
+      '10000100001001',
+      '10100101101001',
+      '10000000000001',
+      '10100101101001',
+      '10000100001001',
+      '10111101111101',
+      '10000000000001',
+      '10111111111101',
+      '11111111111111',
     ],
-    start: { x: 1.5, y: 9.5, angle: -0.65 },
+    start: { x: 2.1, y: 5.5, angle: 0 },
     enemySpawns: [
-      { x: 8.8, y: 1.6 },
-      { x: 9.4, y: 4.5 },
-      { x: 6.5, y: 6.5 },
-      { x: 3.5, y: 2.5 },
-      { x: 9.2, y: 9.1 },
+      { x: 8.2, y: 5.5 },
+      { x: 11.2, y: 2.2 },
+      { x: 11.2, y: 8.8 },
+      { x: 6.2, y: 1.8 },
+      { x: 6.2, y: 9.2 },
     ],
     targetKills: 9,
-    enemySpeed: 1.18,
+    enemySpeed: 1.2,
     enemyDamage: 12,
-    respawnDelayMs: 1700,
-    ceilingTop: '#2d1017',
-    ceilingBottom: '#11060b',
-    floorTop: '#833510',
-    floorBottom: '#220a03',
+    respawnDelayMs: 1400,
+    ceilingTop: '#320f19',
+    ceilingBottom: '#10050a',
+    floorTop: '#8d330c',
+    floorBottom: '#210903',
+    accent: '#ff6447',
   },
 ];
 
 const MAX_VIEW_DISTANCE = 20;
 const FOV = Math.PI / 3;
 const TURN_SPEED = 2.2;
-const MOVE_SPEED = 1.85;
-const FIRE_COOLDOWN = 0.12;
+const MOVE_SPEED = 1.95;
+const FIRE_COOLDOWN = 0.11;
 const PLAYER_RADIUS = 0.18;
 const HUD_HEIGHT = 32;
 const TRANSITION_DELAY_MS = 2200;
 const SHELL_LIFE = 0.65;
 const FLASH_LIFE = 0.18;
+const TRACER_LIFE = 0.08;
 
 export class RetroShooterGame {
   private readonly canvas: HTMLCanvasElement;
@@ -194,11 +200,18 @@ export class RetroShooterGame {
   private transitionEndsAt = 0;
   private transitionMessage = '';
   private gameWon = false;
+  private deathAnnounced = false;
   private totalTime = 0;
   private muzzleFlash = 0;
   private recoilKick = 0;
+  private screenShake = 0;
+  private damageFlash = 0;
+  private hitMarker = 0;
+  private levelBanner = 0;
   private shells: ShellParticle[] = [];
   private flashes: FlashParticle[] = [];
+  private tracers: TracerParticle[] = [];
+  private pendingEvents: GameEvent[] = [];
 
   constructor(canvas: HTMLCanvasElement, assets: GameAssets) {
     this.canvas = canvas;
@@ -217,12 +230,7 @@ export class RetroShooterGame {
     this.floorPattern = this.ctx.createPattern(this.assets.floorTexture, 'repeat');
     this.wallPattern = this.ctx.createPattern(this.assets.wallTexture, 'repeat');
     this.ceilingGradient = this.ctx.createLinearGradient(0, 0, 0, this.viewportHeight / 2);
-    this.floorGradient = this.ctx.createLinearGradient(
-      0,
-      this.viewportHeight / 2,
-      0,
-      this.viewportHeight,
-    );
+    this.floorGradient = this.ctx.createLinearGradient(0, this.viewportHeight / 2, 0, this.viewportHeight);
 
     this.reset();
   }
@@ -234,13 +242,20 @@ export class RetroShooterGame {
     this.player.score = 0;
     this.totalTime = 0;
     this.gameWon = false;
+    this.deathAnnounced = false;
     this.transitionEndsAt = 0;
     this.transitionMessage = '';
     this.fireCooldown = 0;
     this.muzzleFlash = 0;
     this.recoilKick = 0;
+    this.screenShake = 0;
+    this.damageFlash = 0;
+    this.hitMarker = 0;
+    this.levelBanner = 0;
     this.shells = [];
     this.flashes = [];
+    this.tracers = [];
+    this.pendingEvents = [];
     this.loadLevel(0, false);
     this.render(this.currentLevel.mission);
   }
@@ -249,7 +264,7 @@ export class RetroShooterGame {
     this.updateEffects(deltaSeconds);
 
     if (this.gameWon) {
-      this.render('Run complete. Gesture FPS online.');
+      this.render('Run complete. The arena is clear.');
       return;
     }
 
@@ -268,9 +283,7 @@ export class RetroShooterGame {
     }
 
     this.totalTime += deltaSeconds;
-    this.player.angle = normalizeAngle(
-      this.player.angle + commands.turn * TURN_SPEED * deltaSeconds,
-    );
+    this.player.angle = normalizeAngle(this.player.angle + commands.turn * TURN_SPEED * deltaSeconds);
 
     if (commands.forward) {
       const targetX = this.player.x + Math.cos(this.player.angle) * MOVE_SPEED * deltaSeconds;
@@ -308,12 +321,20 @@ export class RetroShooterGame {
       wave: this.currentLevelIndex + 1,
       gameOver: this.player.health <= 0,
       gameWon: this.gameWon,
+      phase: this.gameWon ? 'won' : this.player.health <= 0 ? 'lost' : this.transitionEndsAt > 0 ? 'transition' : 'live',
       message,
       levelName: this.currentLevel.name,
       mission: this.currentLevel.mission,
       kills: this.killsThisLevel,
       targetKills: this.currentLevel.targetKills,
+      liveEnemies: this.enemies.filter((enemy) => enemy.alive).length,
     };
+  }
+
+  drainEvents() {
+    const events = this.pendingEvents;
+    this.pendingEvents = [];
+    return events;
   }
 
   private createFreshPlayer(): PlayerState {
@@ -332,6 +353,9 @@ export class RetroShooterGame {
     this.killsThisLevel = 0;
     this.transitionEndsAt = 0;
     this.transitionMessage = '';
+    this.levelBanner = 1.85;
+    this.damageFlash = 0;
+    this.screenShake = 0;
     this.player.x = this.currentLevel.start.x;
     this.player.y = this.currentLevel.start.y;
     this.player.angle = this.currentLevel.start.angle;
@@ -345,6 +369,7 @@ export class RetroShooterGame {
       attackCooldown: spawnIndex * 0.25,
       spawnIndex,
     }));
+    this.pendingEvents.push({ type: 'level-start' });
   }
 
   private configureGradients() {
@@ -352,12 +377,7 @@ export class RetroShooterGame {
     this.ceilingGradient.addColorStop(0, this.currentLevel.ceilingTop);
     this.ceilingGradient.addColorStop(1, this.currentLevel.ceilingBottom);
 
-    this.floorGradient = this.ctx.createLinearGradient(
-      0,
-      this.viewportHeight / 2,
-      0,
-      this.viewportHeight,
-    );
+    this.floorGradient = this.ctx.createLinearGradient(0, this.viewportHeight / 2, 0, this.viewportHeight);
     this.floorGradient.addColorStop(0, this.currentLevel.floorTop);
     this.floorGradient.addColorStop(1, this.currentLevel.floorBottom);
   }
@@ -367,6 +387,7 @@ export class RetroShooterGame {
       this.gameWon = true;
       this.transitionEndsAt = 0;
       this.transitionMessage = 'All sectors clear.';
+      this.pendingEvents.push({ type: 'run-complete' });
       this.render('All sectors clear. Gesture FPS complete.');
       return;
     }
@@ -390,11 +411,13 @@ export class RetroShooterGame {
   }
 
   private fireOnce() {
+    this.pendingEvents.push({ type: 'shot' });
     this.muzzleFlash = FLASH_LIFE;
     this.recoilKick = 1;
+    this.screenShake = Math.max(this.screenShake, 3.2);
     this.spawnShell();
 
-    let bestTarget: { enemy: EnemyState; distance: number } | null = null;
+    let bestTarget: { enemy: EnemyState; distance: number; relativeAngle: number } | null = null;
 
     for (const enemy of this.enemies) {
       if (!enemy.alive) {
@@ -413,12 +436,14 @@ export class RetroShooterGame {
       }
 
       if (!bestTarget || distance < bestTarget.distance) {
-        bestTarget = { enemy, distance };
+        bestTarget = { enemy, distance, relativeAngle };
       }
     }
 
     if (!bestTarget) {
-      this.spawnHitFlashes('#ffcf67', 5, 0.65);
+      this.pendingEvents.push({ type: 'miss' });
+      this.spawnTracer(this.width / 2 + (Math.random() - 0.5) * 28, this.viewportHeight / 2 - 4);
+      this.spawnScreenFlashes(this.width / 2 + (Math.random() - 0.5) * 16, this.viewportHeight / 2 + (Math.random() - 0.5) * 10, '#ffd76b', 4, 0.45);
       return;
     }
 
@@ -426,7 +451,15 @@ export class RetroShooterGame {
     bestTarget.enemy.respawnAt = performance.now() + this.currentLevel.respawnDelayMs;
     this.player.score += 125;
     this.killsThisLevel += 1;
-    this.spawnHitFlashes('#ff7d52', 8, 1);
+    this.hitMarker = 0.14;
+    this.screenShake = Math.max(this.screenShake, 4.2);
+    this.pendingEvents.push({ type: 'hit' });
+
+    const impactX = ((bestTarget.relativeAngle + FOV / 2) / FOV) * this.width;
+    const impactY = this.viewportHeight / 2 - Math.min(this.viewportHeight * 0.18, (this.viewportHeight / bestTarget.distance) * 0.08);
+
+    this.spawnTracer(impactX, impactY);
+    this.spawnScreenFlashes(impactX, impactY, '#ff7d52', 10, 1);
 
     if (this.killsThisLevel >= this.currentLevel.targetKills) {
       this.transitionEndsAt = performance.now() + TRANSITION_DELAY_MS;
@@ -434,6 +467,7 @@ export class RetroShooterGame {
         this.currentLevelIndex === LEVELS.length - 1
           ? 'Core stable. Final sector complete.'
           : `${this.currentLevel.name} clear. Redirecting to ${LEVELS[this.currentLevelIndex + 1].name}.`;
+      this.pendingEvents.push({ type: 'level-clear' });
     }
   }
 
@@ -449,11 +483,23 @@ export class RetroShooterGame {
     });
   }
 
-  private spawnHitFlashes(color: string, count: number, spread: number) {
+  private spawnTracer(targetX: number, targetY: number) {
+    this.tracers.push({
+      x1: this.width / 2 + 12,
+      y1: this.viewportHeight - 86,
+      x2: targetX,
+      y2: targetY,
+      life: TRACER_LIFE,
+      width: 1.8 + Math.random() * 1.2,
+      color: '#ffd76b',
+    });
+  }
+
+  private spawnScreenFlashes(x: number, y: number, color: string, count: number, spread: number) {
     for (let index = 0; index < count; index += 1) {
       this.flashes.push({
-        x: this.width / 2 + (Math.random() - 0.5) * 12,
-        y: this.viewportHeight / 2 + (Math.random() - 0.5) * 12,
+        x: x + (Math.random() - 0.5) * 18,
+        y: y + (Math.random() - 0.5) * 18,
         vx: (Math.random() - 0.5) * 120 * spread,
         vy: (Math.random() - 0.5) * 120 * spread,
         life: FLASH_LIFE + Math.random() * 0.08,
@@ -466,6 +512,10 @@ export class RetroShooterGame {
   private updateEffects(deltaSeconds: number) {
     this.muzzleFlash = Math.max(0, this.muzzleFlash - deltaSeconds);
     this.recoilKick = Math.max(0, this.recoilKick - deltaSeconds * 8);
+    this.screenShake = Math.max(0, this.screenShake - deltaSeconds * 10);
+    this.damageFlash = Math.max(0, this.damageFlash - deltaSeconds * 1.8);
+    this.hitMarker = Math.max(0, this.hitMarker - deltaSeconds * 2.6);
+    this.levelBanner = Math.max(0, this.levelBanner - deltaSeconds);
 
     this.shells = this.shells
       .map((shell) => ({
@@ -489,6 +539,13 @@ export class RetroShooterGame {
         life: flash.life - deltaSeconds,
       }))
       .filter((flash) => flash.life > 0);
+
+    this.tracers = this.tracers
+      .map((tracer) => ({
+        ...tracer,
+        life: tracer.life - deltaSeconds,
+      }))
+      .filter((tracer) => tracer.life > 0);
   }
 
   private updateEnemies(deltaSeconds: number) {
@@ -496,10 +553,7 @@ export class RetroShooterGame {
 
     this.enemies.forEach((enemy) => {
       if (!enemy.alive) {
-        if (
-          this.killsThisLevel < this.currentLevel.targetKills &&
-          now >= enemy.respawnAt
-        ) {
+        if (this.killsThisLevel < this.currentLevel.targetKills && now >= enemy.respawnAt) {
           const spawn = this.currentLevel.enemySpawns[enemy.spawnIndex];
           enemy.x = spawn.x;
           enemy.y = spawn.y;
@@ -516,7 +570,7 @@ export class RetroShooterGame {
       const dy = this.player.y - enemy.y;
       const distance = Math.hypot(dx, dy);
 
-      if (distance > 0.85) {
+      if (distance > 0.9) {
         const step = deltaSeconds * this.currentLevel.enemySpeed;
         const nextX = enemy.x + (dx / distance) * step;
         const nextY = enemy.y + (dy / distance) * step;
@@ -531,7 +585,15 @@ export class RetroShooterGame {
       } else if (enemy.attackCooldown === 0) {
         this.player.health -= this.currentLevel.enemyDamage;
         enemy.attackCooldown = 0.72;
-        this.spawnHitFlashes('#ff4e3b', 4, 0.5);
+        this.damageFlash = Math.min(0.88, this.damageFlash + 0.42);
+        this.screenShake = Math.max(this.screenShake, 5.2);
+        this.spawnScreenFlashes(this.width / 2 + (Math.random() - 0.5) * 40, this.viewportHeight / 2 + (Math.random() - 0.5) * 28, '#ff4e3b', 6, 0.6);
+        this.pendingEvents.push({ type: 'hurt' });
+
+        if (this.player.health <= 0 && !this.deathAnnounced) {
+          this.deathAnnounced = true;
+          this.pendingEvents.push({ type: 'player-down' });
+        }
       }
     });
   }
@@ -622,12 +684,7 @@ export class RetroShooterGame {
     };
   }
 
-  private getTextureX(
-    hitSide: 'x' | 'y',
-    distance: number,
-    directionX: number,
-    directionY: number,
-  ) {
+  private getTextureX(hitSide: 'x' | 'y', distance: number, directionX: number, directionY: number) {
     const wallX =
       hitSide === 'x'
         ? this.player.y + distance * directionY
@@ -643,20 +700,19 @@ export class RetroShooterGame {
   }
 
   private render(message = 'Ready for gesture control.') {
+    const shakeX = this.screenShake > 0 ? (Math.random() - 0.5) * this.screenShake : 0;
+    const shakeY = this.screenShake > 0 ? (Math.random() - 0.5) * this.screenShake : 0;
+
+    this.ctx.save();
+    this.ctx.translate(shakeX, shakeY);
     this.renderBackdrop();
 
     for (let column = 0; column < this.width; column += 1) {
       const cameraX = (column / this.width) * 2 - 1;
       const rayAngle = this.player.angle + cameraX * (FOV / 2);
       const hit = this.castRay(rayAngle);
-      const correctedDistance = Math.max(
-        0.0001,
-        hit.distance * Math.cos(rayAngle - this.player.angle),
-      );
-      const wallHeight = Math.min(
-        this.viewportHeight,
-        Math.floor(this.viewportHeight / correctedDistance),
-      );
+      const correctedDistance = Math.max(0.0001, hit.distance * Math.cos(rayAngle - this.player.angle));
+      const wallHeight = Math.min(this.viewportHeight, Math.floor(this.viewportHeight / correctedDistance));
       const wallTop = Math.floor(this.viewportHeight / 2 - wallHeight / 2);
       const shade = Math.max(0.18, 1 - correctedDistance / MAX_VIEW_DISTANCE);
 
@@ -665,12 +721,17 @@ export class RetroShooterGame {
     }
 
     this.renderEnemies();
+    this.renderTracers();
     this.renderWeapon();
     this.renderCrosshair();
     this.renderImpactFlashes();
     this.renderShells();
+    this.ctx.restore();
+
     this.renderHud();
     this.renderMessage(message);
+    this.renderCenterCards();
+    this.renderPostFx();
   }
 
   private renderBackdrop() {
@@ -678,6 +739,9 @@ export class RetroShooterGame {
     this.ctx.fillRect(0, 0, this.width, this.viewportHeight / 2);
     this.ctx.fillStyle = this.floorGradient;
     this.ctx.fillRect(0, this.viewportHeight / 2, this.width, this.viewportHeight / 2);
+
+    this.ctx.fillStyle = 'rgba(255, 156, 87, 0.06)';
+    this.ctx.fillRect(0, this.viewportHeight / 2 - 12, this.width, 18);
 
     if (this.wallPattern) {
       this.ctx.save();
@@ -691,20 +755,14 @@ export class RetroShooterGame {
     if (this.floorPattern) {
       this.ctx.save();
       this.ctx.translate(-this.player.x * 16, this.player.y * 8);
-      this.ctx.globalAlpha = 0.3;
+      this.ctx.globalAlpha = 0.32;
       this.ctx.fillStyle = this.floorPattern;
       this.ctx.fillRect(0, this.viewportHeight / 2, this.width, this.viewportHeight / 2);
       this.ctx.restore();
     }
   }
 
-  private drawWallColumn(
-    column: number,
-    wallTop: number,
-    wallHeight: number,
-    textureX: number,
-    shade: number,
-  ) {
+  private drawWallColumn(column: number, wallTop: number, wallHeight: number, textureX: number, shade: number) {
     this.ctx.drawImage(
       this.assets.wallTexture,
       textureX,
@@ -717,7 +775,7 @@ export class RetroShooterGame {
       wallHeight,
     );
 
-    this.ctx.fillStyle = `rgba(22, 5, 2, ${Math.max(0.1, 0.85 - shade)})`;
+    this.ctx.fillStyle = `rgba(22, 5, 2, ${Math.max(0.08, 0.84 - shade)})`;
     this.ctx.fillRect(column, wallTop, 1, wallHeight);
   }
 
@@ -742,12 +800,8 @@ export class RetroShooterGame {
       .sort((left, right) => right.distance - left.distance);
 
     visibleEnemies.forEach(({ distance, angle }) => {
-      const spriteHeight = Math.min(
-        this.viewportHeight * 1.1,
-        (this.viewportHeight / distance) * 0.78,
-      );
-      const spriteWidth =
-        spriteHeight * (this.assets.enemySprite.width / this.assets.enemySprite.height);
+      const spriteHeight = Math.min(this.viewportHeight * 1.15, (this.viewportHeight / distance) * 0.82);
+      const spriteWidth = spriteHeight * (this.assets.enemySprite.width / this.assets.enemySprite.height);
       const screenX = ((angle + FOV / 2) / FOV) * this.width;
       const left = Math.floor(screenX - spriteWidth / 2);
       const top = Math.floor(this.viewportHeight / 2 - spriteHeight / 2);
@@ -758,14 +812,32 @@ export class RetroShooterGame {
       }
 
       this.ctx.save();
-      this.ctx.globalAlpha = Math.max(0.55, 1 - distance / 15);
+      this.ctx.globalAlpha = Math.max(0.62, 1 - distance / 17);
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.26)';
+      this.ctx.beginPath();
+      this.ctx.ellipse(screenX, top + spriteHeight - 4, spriteWidth * 0.28, 6, 0, 0, Math.PI * 2);
+      this.ctx.fill();
       this.ctx.drawImage(this.assets.enemySprite, left, top, spriteWidth, spriteHeight);
       this.ctx.restore();
     });
   }
 
+  private renderTracers() {
+    this.tracers.forEach((tracer) => {
+      this.ctx.save();
+      this.ctx.strokeStyle = tracer.color;
+      this.ctx.globalAlpha = tracer.life / TRACER_LIFE;
+      this.ctx.lineWidth = tracer.width;
+      this.ctx.beginPath();
+      this.ctx.moveTo(tracer.x1, tracer.y1);
+      this.ctx.lineTo(tracer.x2, tracer.y2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    });
+  }
+
   private renderWeapon() {
-    const scale = 2.1;
+    const scale = 2.15;
     const recoil = this.recoilKick * 6;
     const weaponWidth = this.assets.weaponSprite.width * scale;
     const weaponHeight = this.assets.weaponSprite.height * scale;
@@ -779,22 +851,26 @@ export class RetroShooterGame {
       this.ctx.save();
       this.ctx.globalCompositeOperation = 'screen';
       this.ctx.globalAlpha = flashAlpha;
-      this.ctx.fillStyle = '#ffd86f';
+      this.ctx.fillStyle = '#ffe485';
       this.ctx.beginPath();
-      this.ctx.moveTo(this.width / 2 + 10, this.viewportHeight - 100 + recoil);
-      this.ctx.lineTo(this.width / 2 + 42, this.viewportHeight - 126 + recoil);
-      this.ctx.lineTo(this.width / 2 + 58, this.viewportHeight - 92 + recoil);
-      this.ctx.lineTo(this.width / 2 + 26, this.viewportHeight - 86 + recoil);
+      this.ctx.moveTo(this.width / 2 + 8, this.viewportHeight - 98 + recoil);
+      this.ctx.lineTo(this.width / 2 + 40, this.viewportHeight - 132 + recoil);
+      this.ctx.lineTo(this.width / 2 + 64, this.viewportHeight - 92 + recoil);
+      this.ctx.lineTo(this.width / 2 + 28, this.viewportHeight - 82 + recoil);
       this.ctx.closePath();
       this.ctx.fill();
-      this.ctx.fillStyle = '#ff7f3d';
-      this.ctx.fillRect(this.width / 2 + 18, this.viewportHeight - 105 + recoil, 20, 8);
+      this.ctx.fillStyle = '#ff8f42';
+      this.ctx.fillRect(this.width / 2 + 18, this.viewportHeight - 105 + recoil, 24, 9);
+      this.ctx.fillStyle = '#fff3c3';
+      this.ctx.beginPath();
+      this.ctx.arc(this.width / 2 + 35, this.viewportHeight - 98 + recoil, 10, 0, Math.PI * 2);
+      this.ctx.fill();
       this.ctx.restore();
     }
   }
 
   private renderCrosshair() {
-    this.ctx.strokeStyle = '#f6df4a';
+    this.ctx.strokeStyle = this.hitMarker > 0 ? '#fff6bc' : '#f6df4a';
     this.ctx.lineWidth = 1;
     this.ctx.beginPath();
     this.ctx.moveTo(this.width / 2 - 6, this.viewportHeight / 2);
@@ -802,15 +878,33 @@ export class RetroShooterGame {
     this.ctx.moveTo(this.width / 2, this.viewportHeight / 2 - 6);
     this.ctx.lineTo(this.width / 2, this.viewportHeight / 2 + 6);
     this.ctx.stroke();
+
+    if (this.hitMarker > 0) {
+      this.ctx.save();
+      this.ctx.globalAlpha = this.hitMarker / 0.14;
+      this.ctx.strokeStyle = '#ffe9aa';
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.width / 2 - 12, this.viewportHeight / 2 - 12);
+      this.ctx.lineTo(this.width / 2 - 5, this.viewportHeight / 2 - 5);
+      this.ctx.moveTo(this.width / 2 + 12, this.viewportHeight / 2 - 12);
+      this.ctx.lineTo(this.width / 2 + 5, this.viewportHeight / 2 - 5);
+      this.ctx.moveTo(this.width / 2 - 12, this.viewportHeight / 2 + 12);
+      this.ctx.lineTo(this.width / 2 - 5, this.viewportHeight / 2 + 5);
+      this.ctx.moveTo(this.width / 2 + 12, this.viewportHeight / 2 + 12);
+      this.ctx.lineTo(this.width / 2 + 5, this.viewportHeight / 2 + 5);
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
   }
 
   private renderImpactFlashes() {
     this.flashes.forEach((flash) => {
+      this.ctx.save();
       this.ctx.fillStyle = flash.color;
       this.ctx.globalAlpha = flash.life / (FLASH_LIFE + 0.08);
       this.ctx.fillRect(flash.x, flash.y, flash.size, flash.size);
+      this.ctx.restore();
     });
-    this.ctx.globalAlpha = 1;
   }
 
   private renderShells() {
@@ -823,7 +917,6 @@ export class RetroShooterGame {
       this.ctx.fillRect(-3, -1, 6, 2);
       this.ctx.restore();
     });
-    this.ctx.globalAlpha = 1;
   }
 
   private renderHud() {
@@ -834,36 +927,97 @@ export class RetroShooterGame {
 
     this.ctx.fillStyle = '#f5c25b';
     this.ctx.font = 'bold 14px "Lucida Console", monospace';
-    this.ctx.fillText(
-      `${Math.max(0, Math.round(this.player.health)).toString().padStart(3, '0')}%`,
-      20,
-      this.viewportHeight + 21,
-    );
-    this.ctx.fillText(
-      `${this.player.score.toString().padStart(5, '0')}`,
-      226,
-      this.viewportHeight + 21,
-    );
+    this.ctx.fillText(`${Math.max(0, Math.round(this.player.health)).toString().padStart(3, '0')}%`, 20, this.viewportHeight + 21);
+    this.ctx.fillText(`${this.player.score.toString().padStart(5, '0')}`, 226, this.viewportHeight + 21);
     this.ctx.font = '10px "Lucida Console", monospace';
     this.ctx.fillStyle = '#f8e3b8';
     this.ctx.fillText('HEALTH', 20, this.viewportHeight + 30);
     this.ctx.fillText('SCORE', 226, this.viewportHeight + 30);
-    this.ctx.fillText(`${this.currentLevel.name}`, 96, this.viewportHeight + 12);
+    this.ctx.fillText(this.currentLevel.name, 94, this.viewportHeight + 12);
     this.ctx.fillText(
-      `${this.killsThisLevel.toString().padStart(2, '0')}/${this.currentLevel.targetKills
-        .toString()
-        .padStart(2, '0')} CLEARED`,
+      `${this.killsThisLevel.toString().padStart(2, '0')}/${this.currentLevel.targetKills.toString().padStart(2, '0')} CLEARED`,
       82,
       this.viewportHeight + 27,
     );
   }
 
   private renderMessage(message: string) {
-    this.ctx.fillStyle = 'rgba(7, 5, 9, 0.66)';
-    this.ctx.fillRect(8, 8, 238, 20);
-    this.ctx.fillStyle = '#f6df4a';
+    this.ctx.fillStyle = 'rgba(7, 5, 9, 0.7)';
+    this.ctx.fillRect(8, 8, 236, 20);
+    this.ctx.fillStyle = this.currentLevel.accent;
     this.ctx.font = '10px "Lucida Console", monospace';
     this.ctx.fillText(message, 12, 21);
+  }
+
+  private renderCenterCards() {
+    if (this.levelBanner > 0 && this.transitionEndsAt === 0 && this.player.health > 0 && !this.gameWon) {
+      const alpha = Math.min(1, this.levelBanner / 0.8);
+      this.renderCenterCard(this.currentLevel.name, this.currentLevel.mission, alpha, 94);
+      return;
+    }
+
+    if (this.transitionEndsAt > 0) {
+      this.renderCenterCard(this.currentLevel.name, this.transitionMessage, 0.95, 88);
+      return;
+    }
+
+    if (this.player.health <= 0) {
+      this.renderCenterCard('Run Lost', 'Reset the arena and go again.', 0.96, 86);
+      return;
+    }
+
+    if (this.gameWon) {
+      this.renderCenterCard('Arena Clear', 'All sectors stable. Gesture run complete.', 0.96, 92);
+    }
+  }
+
+  private renderCenterCard(title: string, subtitle: string, alpha: number, y: number) {
+    this.ctx.save();
+    this.ctx.globalAlpha = alpha;
+    this.ctx.fillStyle = 'rgba(7, 5, 9, 0.78)';
+    this.ctx.fillRect(42, y - 22, 236, 44);
+    this.ctx.strokeStyle = `${this.currentLevel.accent}88`;
+    this.ctx.strokeRect(42.5, y - 21.5, 235, 43);
+    this.ctx.fillStyle = '#ffeac0';
+    this.ctx.font = 'bold 14px "Lucida Console", monospace';
+    this.ctx.fillText(title, 58, y - 2);
+    this.ctx.font = '10px "Lucida Console", monospace';
+    this.ctx.fillStyle = '#f6d693';
+    this.ctx.fillText(subtitle, 58, y + 14);
+    this.ctx.restore();
+  }
+
+  private renderPostFx() {
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+    this.ctx.fillRect(0, 0, this.width, this.viewportHeight);
+
+    const vignette = this.ctx.createRadialGradient(
+      this.width / 2,
+      this.viewportHeight / 2,
+      this.viewportHeight * 0.18,
+      this.width / 2,
+      this.viewportHeight / 2,
+      this.viewportHeight * 0.72,
+    );
+    vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vignette.addColorStop(1, 'rgba(0, 0, 0, 0.58)');
+    this.ctx.fillStyle = vignette;
+    this.ctx.fillRect(0, 0, this.width, this.viewportHeight);
+
+    this.ctx.globalAlpha = 0.08;
+    this.ctx.fillStyle = '#ffffff';
+    for (let y = 0; y < this.viewportHeight; y += 4) {
+      this.ctx.fillRect(0, y, this.width, 1);
+    }
+
+    if (this.damageFlash > 0) {
+      this.ctx.globalAlpha = this.damageFlash * 0.5;
+      this.ctx.fillStyle = '#ff5137';
+      this.ctx.fillRect(0, 0, this.width, this.viewportHeight);
+    }
+
+    this.ctx.restore();
   }
 }
 

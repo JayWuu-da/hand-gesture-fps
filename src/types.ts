@@ -24,15 +24,34 @@ export interface CommandState {
   confidence: number;
 }
 
+export type GamePhase = 'live' | 'transition' | 'won' | 'lost';
+
+export type GameEventType =
+  | 'shot'
+  | 'hit'
+  | 'miss'
+  | 'hurt'
+  | 'level-start'
+  | 'level-clear'
+  | 'run-complete'
+  | 'player-down';
+
+export interface GameEvent {
+  type: GameEventType;
+  intensity?: number;
+}
+
 export interface HudSnapshot {
   health: number;
   score: number;
   wave: number;
   gameOver: boolean;
   gameWon: boolean;
+  phase: GamePhase;
   message: string;
   levelName: string;
   mission: string;
   kills: number;
   targetKills: number;
+  liveEnemies: number;
 }

@@ -12,6 +12,9 @@ playtesting, and personal/demo use only.
 - Lets the player move and attack in a retro FPS scene
 - Uses a small subset of Freedoom art assets for the current visual style
 - Can optionally cover the face area in the webcam preview with a toggleable face mask
+- Includes a play-first product UI with a launch overlay instead of a debug-first layout
+- Adds lightweight Web Audio combat cues for shooting, hits, damage, and level transitions
+- Runs through multiple sectors with escalating enemy pressure and mission goals
 
 ## Current gesture controls
 
