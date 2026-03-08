@@ -149,11 +149,11 @@ function pickHand(hands: HandPose[] | undefined, handedness: 'Left' | 'Right') {
 }
 
 function toAnchor(hand: HandPose, handedness: 'Left' | 'Right'): TechniqueAnchor {
-  const baseX = handedness === 'Left' ? 0.76 : 0.24;
+  const baseX = handedness === 'Left' ? 0.24 : 0.76;
   const x = clamp(
-    baseX + (0.5 - hand.x) * 0.16,
-    handedness === 'Left' ? 0.62 : 0.12,
-    handedness === 'Left' ? 0.88 : 0.38,
+    baseX + (hand.x - 0.5) * 0.16,
+    handedness === 'Left' ? 0.12 : 0.62,
+    handedness === 'Left' ? 0.38 : 0.88,
   );
   const y = clamp(0.58 + (hand.y - 0.5) * 0.22, 0.32, 0.8);
 
