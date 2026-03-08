@@ -57,10 +57,11 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <section class="panel">
           <h2>Mappings</h2>
           <ul class="mapping-list">
-            <li><strong>Pointing_Up</strong> advances forward.</li>
-            <li><strong>Closed_Fist</strong> fires a single hit-scan shot.</li>
-            <li><strong>Open_Palm</strong> stops movement.</li>
-            <li>Move your hand left or right to rotate the view.</li>
+            <li><strong>Point Up</strong> moves forward.</li>
+            <li><strong>Point Left</strong> turns left.</li>
+            <li><strong>Point Right</strong> turns right.</li>
+            <li><strong>Closed Fist</strong> fires.</li>
+            <li><strong>Open Palm</strong> holds position.</li>
           </ul>
           <p class="dev-note">
             Dev fallback: <code>W</code>/<code>A</code>/<code>D</code> and <code>Space</code>.
@@ -123,19 +124,17 @@ async function bootstrap() {
 
 function mapInput(): CommandState {
   const frame = webcamStarted ? gestures.sample() : null;
-  const centeredX = frame ? frame.x - 0.5 : 0;
-  const deadZone = 0.09;
-  const gestureTurn =
-    Math.abs(centeredX) > deadZone ? clamp(centeredX / 0.42, -1, 1) : 0;
   const keyboardTurn = (keyboard.turnRight ? 1 : 0) - (keyboard.turnLeft ? 1 : 0);
   const activeGesture = frame?.gesture ?? 'No hand';
-  const forwardFromGesture = activeGesture === 'Pointing_Up';
-  const fireFromGesture = activeGesture === 'Closed_Fist';
+  const forwardFromGesture = activeGesture === 'Point Up';
+  const turnFromGesture =
+    activeGesture === 'Point Left' ? -0.85 : activeGesture === 'Point Right' ? 0.85 : 0;
+  const fireFromGesture = activeGesture === 'Closed Fist';
   const commands: CommandState = {
     hasHand: Boolean(frame?.hasHand),
     forward: keyboard.forward || forwardFromGesture,
     fire: keyboard.fire || fireFromGesture,
-    turn: clamp(gestureTurn + keyboardTurn * 0.8, -1, 1),
+    turn: clamp(turnFromGesture + keyboardTurn * 0.8, -1, 1),
     gesture: activeGesture,
     confidence: frame?.confidence ?? 0,
   };

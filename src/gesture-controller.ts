@@ -18,6 +18,8 @@ const DEFAULT_FRAME: GestureFrame = {
   confidence: 0,
 };
 
+type Landmark = GestureRecognizerResult['landmarks'][number][number];
+
 export class GestureController {
   private readonly video: HTMLVideoElement;
   private readonly overlay: HTMLCanvasElement;
@@ -109,7 +111,7 @@ export class GestureController {
 
     const result = this.recognizer.recognizeForVideo(this.video, performance.now());
     this.frame = this.extractFrame(result);
-    this.drawOverlay(result);
+    this.drawOverlay(result, this.frame);
 
     return this.frame;
   }
@@ -118,7 +120,7 @@ export class GestureController {
     const hand = result.landmarks[0];
     const topGesture = result.gestures[0]?.[0];
 
-    if (!hand || !topGesture) {
+    if (!hand) {
       return DEFAULT_FRAME;
     }
 
@@ -126,17 +128,114 @@ export class GestureController {
     const indexKnuckle = hand[5];
     const x = clamp((wrist.x + indexKnuckle.x) / 2, 0, 1);
     const y = clamp((wrist.y + indexKnuckle.y) / 2, 0, 1);
+    const interpretation = this.interpretHandPose(hand, topGesture?.categoryName, topGesture?.score);
 
     return {
       hasHand: true,
       x,
       y,
-      gesture: topGesture.categoryName,
-      confidence: topGesture.score,
+      gesture: interpretation.gesture,
+      confidence: interpretation.confidence,
     };
   }
 
-  private drawOverlay(result: GestureRecognizerResult) {
+  private interpretHandPose(
+    hand: GestureRecognizerResult['landmarks'][number],
+    modelGesture?: string,
+    modelConfidence?: number,
+  ) {
+    const wrist = hand[0];
+    const indexMcp = hand[5];
+    const indexPip = hand[6];
+    const indexTip = hand[8];
+    const middleMcp = hand[9];
+    const middleTip = hand[12];
+    const ringMcp = hand[13];
+    const ringTip = hand[16];
+    const pinkyMcp = hand[17];
+    const pinkyTip = hand[20];
+
+    const handScale = Math.max(0.08, distance(wrist, middleMcp));
+    const indexExtended = this.isFingerExtended(wrist, indexMcp, indexPip, indexTip, handScale);
+    const middleCurled = this.isFingerCurled(wrist, middleMcp, middleTip, handScale);
+    const ringCurled = this.isFingerCurled(wrist, ringMcp, ringTip, handScale);
+    const pinkyCurled = this.isFingerCurled(wrist, pinkyMcp, pinkyTip, handScale);
+    const isolatedIndex = indexExtended && middleCurled && ringCurled && pinkyCurled;
+
+    if (modelGesture === 'Closed_Fist') {
+      return {
+        gesture: 'Closed Fist',
+        confidence: modelConfidence ?? 0.9,
+      };
+    }
+
+    if (isolatedIndex) {
+      const directionX = indexTip.x - indexMcp.x;
+      const directionY = indexTip.y - indexMcp.y;
+      const horizontal = Math.abs(directionX);
+      const vertical = Math.abs(directionY);
+
+      if (directionY < -handScale * 0.45 && vertical > horizontal * 0.8) {
+        return {
+          gesture: 'Point Up',
+          confidence: clamp(0.72 + vertical / (handScale * 2.2), 0, 0.99),
+        };
+      }
+
+      if (directionX > handScale * 0.35 && horizontal > vertical * 0.9) {
+        return {
+          gesture: 'Point Right',
+          confidence: clamp(0.72 + horizontal / (handScale * 2.2), 0, 0.99),
+        };
+      }
+
+      if (directionX < -handScale * 0.35 && horizontal > vertical * 0.9) {
+        return {
+          gesture: 'Point Left',
+          confidence: clamp(0.72 + horizontal / (handScale * 2.2), 0, 0.99),
+        };
+      }
+    }
+
+    if (modelGesture === 'Open_Palm') {
+      return {
+        gesture: 'Open Palm',
+        confidence: modelConfidence ?? 0.75,
+      };
+    }
+
+    return {
+      gesture: 'Hold',
+      confidence: modelConfidence ?? 0.55,
+    };
+  }
+
+  private isFingerExtended(
+    wrist: Landmark,
+    mcp: Landmark,
+    pip: Landmark,
+    tip: Landmark,
+    handScale: number,
+  ) {
+    const wristToTip = distance(wrist, tip);
+    const wristToPip = distance(wrist, pip);
+    const fingerLength = distance(mcp, tip);
+    const lower = vector(mcp, pip);
+    const upper = vector(pip, tip);
+    const alignment = normalizedDot(lower.x, lower.y, upper.x, upper.y);
+
+    return (
+      wristToTip > wristToPip + handScale * 0.18 &&
+      fingerLength > handScale * 0.55 &&
+      alignment > 0.75
+    );
+  }
+
+  private isFingerCurled(wrist: Landmark, mcp: Landmark, tip: Landmark, handScale: number) {
+    return distance(wrist, tip) < distance(wrist, mcp) + handScale * 0.15;
+  }
+
+  private drawOverlay(result: GestureRecognizerResult, frame: GestureFrame) {
     this.overlayContext.clearRect(0, 0, this.overlay.width, this.overlay.height);
 
     this.overlayContext.strokeStyle = 'rgba(255, 219, 77, 0.92)';
@@ -169,9 +268,37 @@ export class GestureController {
       }
     });
     this.overlayContext.stroke();
+
+    this.overlayContext.fillStyle = 'rgba(7, 5, 9, 0.72)';
+    this.overlayContext.fillRect(10, 10, 170, 28);
+    this.overlayContext.fillStyle = '#ffd94d';
+    this.overlayContext.font = '16px "Lucida Console", monospace';
+    this.overlayContext.fillText(frame.gesture, 18, 29);
   }
 }
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function distance(a: Landmark, b: Landmark) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function vector(from: Landmark, to: Landmark) {
+  return {
+    x: to.x - from.x,
+    y: to.y - from.y,
+  };
+}
+
+function normalizedDot(ax: number, ay: number, bx: number, by: number) {
+  const aLength = Math.hypot(ax, ay);
+  const bLength = Math.hypot(bx, by);
+
+  if (aLength === 0 || bLength === 0) {
+    return -1;
+  }
+
+  return (ax * bx + ay * by) / (aLength * bLength);
 }
