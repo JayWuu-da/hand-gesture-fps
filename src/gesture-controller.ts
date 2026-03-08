@@ -212,7 +212,6 @@ export class GestureController {
     const indexTip = hand[8];
     const thumbTip = hand[4];
     const middleMcp = hand[9];
-    const middlePip = hand[10];
     const middleTip = hand[12];
     const ringMcp = hand[13];
     const ringTip = hand[16];
@@ -221,13 +220,12 @@ export class GestureController {
 
     const handScale = Math.max(0.08, distance(wrist, middleMcp));
     const indexExtended = this.isFingerExtended(wrist, indexMcp, indexPip, indexTip, handScale);
-    const middleExtended = this.isFingerExtended(wrist, middleMcp, middlePip, middleTip, handScale);
     const middleCurled = this.isFingerCurled(wrist, middleMcp, middleTip, handScale);
     const ringCurled = this.isFingerCurled(wrist, ringMcp, ringTip, handScale);
     const pinkyCurled = this.isFingerCurled(wrist, pinkyMcp, pinkyTip, handScale);
     const isolatedIndex = indexExtended && middleCurled && ringCurled && pinkyCurled;
     const thumbIndexPinch = distance(thumbTip, indexTip) < handScale * 0.52;
-    const secretSeal = thumbIndexPinch && middleExtended && ringCurled && pinkyCurled;
+    const secretSeal = thumbIndexPinch;
 
     if (modelGesture === 'Closed_Fist') {
       return {
@@ -250,7 +248,7 @@ export class GestureController {
     if (secretSeal) {
       return {
         gesture: 'Secret Seal',
-        confidence: clamp(0.74 + (thumbIndexPinch ? 0.12 : 0) + (middleExtended ? 0.08 : 0), 0, 0.99),
+        confidence: clamp(0.78 + (thumbIndexPinch ? 0.12 : 0), 0, 0.99),
         openPalm: false,
         secretSeal: true,
       };

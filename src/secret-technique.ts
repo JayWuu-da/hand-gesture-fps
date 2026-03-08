@@ -16,7 +16,7 @@ export class SecretTechniqueController {
   private akaCharge = 0;
   private aoCharge = 0;
   private fusionCharge = 0;
-  private fusionWindow = 0;
+  private fusionBaseline: number | null = null;
   private purpleCharge = 0;
   private cooldown = 0;
   private lastRightDepth: number | null = null;
@@ -25,7 +25,7 @@ export class SecretTechniqueController {
     this.akaCharge = 0;
     this.aoCharge = 0;
     this.fusionCharge = 0;
-    this.fusionWindow = 0;
+    this.fusionBaseline = null;
     this.purpleCharge = 0;
     this.cooldown = 0;
     this.lastRightDepth = null;
@@ -44,7 +44,6 @@ export class SecretTechniqueController {
 
     this.lastRightDepth = rightHand?.depth ?? null;
     this.cooldown = Math.max(0, this.cooldown - deltaSeconds);
-    this.fusionWindow = Math.max(0, this.fusionWindow - deltaSeconds);
 
     if (this.cooldown > 0) {
       this.akaCharge = Math.max(0, this.akaCharge - deltaSeconds * 2.4);
@@ -69,24 +68,30 @@ export class SecretTechniqueController {
 
     const handDistance =
       leftHand && rightHand ? Math.hypot(leftHand.x - rightHand.x, leftHand.y - rightHand.y) : 1;
-    const canFuse =
-      leftSeal &&
-      rightSeal &&
-      this.akaCharge > 0.36 &&
-      this.aoCharge > 0.36 &&
-      handDistance < 0.2;
+    const canTrackFusion = leftSeal && rightSeal && this.akaCharge > 0.22 && this.aoCharge > 0.22;
+
+    if (canTrackFusion) {
+      if (this.fusionBaseline === null) {
+        this.fusionBaseline = handDistance;
+      } else if (handDistance > this.fusionBaseline) {
+        this.fusionBaseline = handDistance;
+      }
+    } else if (!leftSeal && !rightSeal) {
+      this.fusionBaseline = null;
+    }
+
+    const reducedEnough =
+      this.fusionBaseline !== null &&
+      (handDistance < this.fusionBaseline * 0.76 || this.fusionBaseline - handDistance > 0.06);
+    const canFuse = canTrackFusion && reducedEnough;
 
     if (canFuse) {
       this.fusionCharge = Math.min(1, this.fusionCharge + deltaSeconds * 2.4);
-      this.fusionWindow = 0.42;
     } else {
-      this.fusionCharge = Math.max(0, this.fusionCharge - deltaSeconds * 0.8);
+      this.fusionCharge = Math.max(0, this.fusionCharge - deltaSeconds * 0.95);
     }
 
-    const canChargePurple =
-      (this.fusionCharge > 0.28 || this.fusionWindow > 0) &&
-      !leftSeal &&
-      rightSeal;
+    const canChargePurple = this.fusionCharge > 0.24 && !leftSeal && rightSeal;
 
     if (canChargePurple) {
       this.purpleCharge = Math.min(1, this.purpleCharge + deltaSeconds * 1.55);
@@ -102,7 +107,7 @@ export class SecretTechniqueController {
       this.akaCharge = 0;
       this.aoCharge = 0;
       this.fusionCharge = 0;
-      this.fusionWindow = 0;
+      this.fusionBaseline = null;
       this.purpleCharge = 0;
       this.cooldown = 1.2;
       return this.buildState('purple', 'Secret violet discharge', true, leftHand, rightHand);
