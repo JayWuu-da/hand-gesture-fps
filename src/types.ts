@@ -29,5 +29,10 @@ export interface HudSnapshot {
   score: number;
   wave: number;
   gameOver: boolean;
+  gameWon: boolean;
   message: string;
+  levelName: string;
+  mission: string;
+  kills: number;
+  targetKills: number;
 }

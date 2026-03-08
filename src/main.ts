@@ -7,72 +7,105 @@ import type { CommandState } from './types';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="shell">
-    <section class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">Hand Gesture FPS Prototype</p>
-        <h1>Gesture Doom-Like</h1>
+    <header class="masthead">
+      <div class="brand-lockup">
+        <p class="eyebrow">Gesture FPS Prototype</p>
+        <h1>Play the arena with your hands.</h1>
         <p class="summary">
-          Webcam one-hand gestures drive forward movement, turning, and single-shot attacks
-          inside a retro survival corridor with Freedoom art assets.
+          A stripped-down retro shooter where the camera reads your hands and the arena
+          answers instantly.
         </p>
       </div>
-      <div class="hero-actions">
-        <button id="start-button" type="button">Start Webcam Run</button>
-        <button id="restart-button" type="button" class="ghost">Restart Arena</button>
-      </div>
-    </section>
 
-    <main class="layout">
+      <div class="top-actions">
+        <button id="start-button" type="button">Enable Camera</button>
+        <button id="restart-button" type="button" class="ghost">Reset Run</button>
+        <button id="debug-toggle" type="button" class="ghost">Debug View</button>
+      </div>
+    </header>
+
+    <div class="command-ribbon">
+      <span>Both index fingers up to move</span>
+      <span>Left fist / Right fist to steer</span>
+      <span>Both open palms to fire</span>
+    </div>
+
+    <main class="experience">
       <section class="viewport-panel">
+        <div class="viewport-head">
+          <div class="viewport-copy">
+            <span id="stage-name" class="stage-pill">Sector 01</span>
+            <h2 id="objective-title">Clear the opening lane.</h2>
+            <p id="status-message" class="status-line">
+              Camera off. Turn it on, raise both hands, and enter the arena.
+            </p>
+          </div>
+
+          <div class="utility-row">
+            <button id="face-mask-button" type="button" class="tiny ghost">Face Mask Off</button>
+          </div>
+        </div>
+
         <canvas id="game-canvas" aria-label="Retro shooter viewport"></canvas>
-        <div class="hud-bar">
-          <div><span class="hud-label">Health</span><strong id="hud-health">100</strong></div>
-          <div><span class="hud-label">Score</span><strong id="hud-score">0</strong></div>
-          <div><span class="hud-label">Wave</span><strong id="hud-wave">1</strong></div>
+
+        <div class="telemetry-strip">
+          <div>
+            <span class="telemetry-label">Health</span>
+            <strong id="hud-health">100</strong>
+          </div>
+          <div>
+            <span class="telemetry-label">Score</span>
+            <strong id="hud-score">0</strong>
+          </div>
+          <div>
+            <span class="telemetry-label">Sector</span>
+            <strong id="hud-wave">1</strong>
+          </div>
+          <div>
+            <span class="telemetry-label">Objective</span>
+            <strong id="objective-progress">0 / 4</strong>
+          </div>
         </div>
       </section>
 
-      <aside class="side-panel">
-        <section class="panel">
-          <h2>Input Status</h2>
-          <dl class="status-list">
-            <div><dt>Camera</dt><dd id="camera-status">Idle</dd></div>
-            <div><dt>Gesture</dt><dd id="gesture-name">No hand</dd></div>
-            <div><dt>Confidence</dt><dd id="gesture-confidence">0%</dd></div>
-            <div><dt>Turn</dt><dd id="turn-status">0.00</dd></div>
-          </dl>
-          <p id="status-message" class="status-message">
-            Loading retro assets, then allow webcam access.
+      <aside class="support-rail">
+        <section class="guide-card">
+          <p class="guide-kicker">How It Feels</p>
+          <h3>Gesture first. Debug second.</h3>
+          <p>
+            The arena should feel immediate: move, steer, and fire without decoding a control
+            panel.
           </p>
-        </section>
-
-        <section class="panel">
-          <h2>Gesture Feed</h2>
-          <div class="panel-actions">
-            <button id="face-mask-button" type="button" class="tiny ghost">Face Mask: Off</button>
-          </div>
-          <div class="video-stack">
-            <video id="gesture-video" autoplay playsinline muted></video>
-            <canvas id="gesture-overlay"></canvas>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2>Mappings</h2>
-          <ul class="mapping-list">
-            <li><strong>Left hand fist</strong> turns left.</li>
-            <li><strong>Right hand fist</strong> turns right.</li>
-            <li><strong>Both hands point up</strong> moves forward.</li>
-            <li><strong>Both hands open</strong> fires continuously.</li>
-            <li>Any other mixed pose stops gesture movement.</li>
+          <ul class="guide-list">
+            <li><strong>Move</strong> with both index fingers pointed up.</li>
+            <li><strong>Turn</strong> with a left or right fist.</li>
+            <li><strong>Spray fire</strong> with both hands open.</li>
+            <li><strong>Fallback</strong> to <code>W</code>, <code>A</code>, <code>D</code>, <code>Space</code>.</li>
           </ul>
-          <p class="dev-note">
-            Dev fallback: <code>W</code>/<code>A</code>/<code>D</code> and <code>Space</code>.
-          </p>
-          <p class="credit-note">
-            Visual assets: Freedoom subset, noted in <code>THIRD_PARTY_NOTICES.md</code>.
-          </p>
         </section>
+
+        <details id="debug-panel" class="debug-panel">
+          <summary>Debug View</summary>
+          <div class="debug-grid">
+            <section class="panel">
+              <h3>Live Input</h3>
+              <dl class="status-list">
+                <div><dt>Camera</dt><dd id="camera-status">Idle</dd></div>
+                <div><dt>Gesture</dt><dd id="gesture-name">No hands</dd></div>
+                <div><dt>Confidence</dt><dd id="gesture-confidence">0%</dd></div>
+                <div><dt>Turn</dt><dd id="turn-status">0.00</dd></div>
+              </dl>
+            </section>
+
+            <section class="panel">
+              <h3>Gesture Feed</h3>
+              <div class="video-stack">
+                <video id="gesture-video" autoplay playsinline muted></video>
+                <canvas id="gesture-overlay"></canvas>
+              </div>
+            </section>
+          </div>
+        </details>
       </aside>
     </main>
   </div>
@@ -84,11 +117,12 @@ const overlay = document.querySelector<HTMLCanvasElement>('#gesture-overlay')!;
 const startButton = document.querySelector<HTMLButtonElement>('#start-button')!;
 const restartButton = document.querySelector<HTMLButtonElement>('#restart-button')!;
 const faceMaskButton = document.querySelector<HTMLButtonElement>('#face-mask-button')!;
+const debugToggle = document.querySelector<HTMLButtonElement>('#debug-toggle')!;
+const debugPanel = document.querySelector<HTMLDetailsElement>('#debug-panel')!;
 
-if (!gameCanvas || !video || !overlay || !startButton || !restartButton || !faceMaskButton) {
-  throw new Error('The application shell did not render correctly.');
-}
-
+const stageName = document.querySelector<HTMLElement>('#stage-name')!;
+const objectiveTitle = document.querySelector<HTMLElement>('#objective-title')!;
+const objectiveProgress = document.querySelector<HTMLElement>('#objective-progress')!;
 const statusMessage = document.querySelector<HTMLElement>('#status-message')!;
 const cameraStatus = document.querySelector<HTMLElement>('#camera-status')!;
 const gestureName = document.querySelector<HTMLElement>('#gesture-name')!;
@@ -116,7 +150,7 @@ async function bootstrap() {
   try {
     const assets = await loadGameAssets();
     game = new RetroShooterGame(gameCanvas, assets);
-    updateHud('Allow webcam access, then show one hand in frame.');
+    updateHud('Camera off. Turn it on, raise both hands, and enter the arena.');
     animationFrame = requestAnimationFrame(frameLoop);
   } catch (error) {
     statusMessage.textContent =
@@ -168,6 +202,9 @@ function updateHud(message?: string) {
   hudHealth.textContent = `${hud.health}`;
   hudScore.textContent = `${hud.score}`;
   hudWave.textContent = `${hud.wave}`;
+  stageName.textContent = hud.levelName;
+  objectiveTitle.textContent = hud.mission;
+  objectiveProgress.textContent = `${hud.kills} / ${hud.targetKills}`;
   statusMessage.textContent = hud.message;
 }
 
@@ -187,10 +224,12 @@ function frameLoop(now: number) {
   game.update(isGameplayActive ? rawDeltaSeconds : 0, commands);
   updateHud(
     !webcamStarted
-      ? 'Webcam is idle. Start camera or use dev fallback keys.'
+      ? hasKeyboardInput
+        ? 'Keyboard fallback active. Camera can stay off.'
+        : 'Camera off. Turn it on, raise both hands, and enter the arena.'
       : commands.hasHand
-        ? `Tracking ${commands.gesture}`
-        : 'No hand detected. Show one hand to continue.',
+        ? `Live input: ${commands.gesture}`
+        : 'No hands detected. Raise both hands into frame.',
   );
 
   animationFrame = requestAnimationFrame(frameLoop);
@@ -198,13 +237,13 @@ function frameLoop(now: number) {
 
 async function startWebcamSession() {
   cameraStatus.textContent = 'Loading';
-  statusMessage.textContent = 'Requesting webcam permission...';
+  statusMessage.textContent = 'Requesting camera permission...';
 
   try {
     await gestures.start();
     webcamStarted = true;
     cameraStatus.textContent = 'Live';
-    statusMessage.textContent = 'Gesture tracking is live.';
+    statusMessage.textContent = 'Camera live. Raise both hands and play.';
   } catch (error) {
     cameraStatus.textContent = 'Failed';
     statusMessage.textContent =
@@ -218,7 +257,7 @@ function restartArena() {
   }
 
   game.reset();
-  updateHud(webcamStarted ? 'Arena restarted.' : 'Arena restarted. Webcam is still idle.');
+  updateHud(webcamStarted ? 'Run reset. Sector one is live.' : 'Run reset. Camera is still off.');
 }
 
 startButton.addEventListener('click', async () => {
@@ -226,20 +265,25 @@ startButton.addEventListener('click', async () => {
     gestures.stop();
     webcamStarted = false;
     cameraStatus.textContent = 'Idle';
-    startButton.textContent = 'Start Webcam Run';
-    updateHud('Webcam stopped. Dev fallback keys remain active.');
+    startButton.textContent = 'Enable Camera';
+    updateHud('Camera off. Keyboard fallback is still available.');
     return;
   }
 
   await startWebcamSession();
 
   if (webcamStarted) {
-    startButton.textContent = 'Stop Webcam';
+    startButton.textContent = 'Disable Camera';
   }
 });
 
 restartButton.addEventListener('click', () => {
   restartArena();
+});
+
+debugToggle.addEventListener('click', () => {
+  debugPanel.open = !debugPanel.open;
+  debugToggle.textContent = debugPanel.open ? 'Hide Debug' : 'Debug View';
 });
 
 faceMaskButton.addEventListener('click', async () => {
@@ -249,12 +293,12 @@ faceMaskButton.addEventListener('click', async () => {
   try {
     await gestures.setFaceMaskEnabled(nextState);
     faceMaskEnabled = nextState;
-    faceMaskButton.textContent = `Face Mask: ${faceMaskEnabled ? 'On' : 'Off'}`;
+    faceMaskButton.textContent = `Face Mask ${faceMaskEnabled ? 'On' : 'Off'}`;
 
     if (webcamStarted) {
       statusMessage.textContent = faceMaskEnabled
-        ? 'Gesture tracking is live. Face mask is on.'
-        : 'Gesture tracking is live. Face mask is off.';
+        ? 'Camera live. Face mask is on.'
+        : 'Camera live. Face mask is off.';
     }
   } catch (error) {
     statusMessage.textContent =
