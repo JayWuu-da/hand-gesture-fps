@@ -1,5 +1,7 @@
 # Gesture Doom-Like
 
+https://hand-gesture-fps.vercel.app/
+
 Webcam hand-gesture FPS prototype built with `Vite`, `TypeScript`, canvas-based
 raycasting, and MediaPipe gesture recognition.
 
