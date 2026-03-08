@@ -55,6 +55,11 @@ button.ghost {
   background: rgba(18, 10, 14, 0.92);
 }
 
+button.tiny {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+}
+
 #app {
   width: 100%;
 }
@@ -171,6 +176,12 @@ button.ghost {
   text-transform: uppercase;
   font-size: 0.95rem;
   letter-spacing: 0.16em;
+}
+
+.panel-actions {
+  display: flex;
+  justify-content: end;
+  margin: -0.15rem 0 0.75rem;
 }
 
 .status-list {

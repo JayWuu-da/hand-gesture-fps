@@ -48,6 +48,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
         <section class="panel">
           <h2>Gesture Feed</h2>
+          <div class="panel-actions">
+            <button id="face-mask-button" type="button" class="tiny ghost">Face Mask: Off</button>
+          </div>
           <div class="video-stack">
             <video id="gesture-video" autoplay playsinline muted></video>
             <canvas id="gesture-overlay"></canvas>
@@ -57,11 +60,11 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <section class="panel">
           <h2>Mappings</h2>
           <ul class="mapping-list">
-            <li><strong>Point Up</strong> moves forward.</li>
-            <li><strong>Point Left</strong> turns left.</li>
-            <li><strong>Point Right</strong> turns right.</li>
-            <li><strong>Closed Fist</strong> fires.</li>
-            <li><strong>Open Palm</strong> holds position.</li>
+            <li><strong>Left hand fist</strong> turns left.</li>
+            <li><strong>Right hand fist</strong> turns right.</li>
+            <li><strong>Both hands point up</strong> moves forward.</li>
+            <li><strong>Both hands open</strong> fires continuously.</li>
+            <li>Any other mixed pose stops gesture movement.</li>
           </ul>
           <p class="dev-note">
             Dev fallback: <code>W</code>/<code>A</code>/<code>D</code> and <code>Space</code>.
@@ -80,8 +83,9 @@ const video = document.querySelector<HTMLVideoElement>('#gesture-video')!;
 const overlay = document.querySelector<HTMLCanvasElement>('#gesture-overlay')!;
 const startButton = document.querySelector<HTMLButtonElement>('#start-button')!;
 const restartButton = document.querySelector<HTMLButtonElement>('#restart-button')!;
+const faceMaskButton = document.querySelector<HTMLButtonElement>('#face-mask-button')!;
 
-if (!gameCanvas || !video || !overlay || !startButton || !restartButton) {
+if (!gameCanvas || !video || !overlay || !startButton || !restartButton || !faceMaskButton) {
   throw new Error('The application shell did not render correctly.');
 }
 
@@ -106,6 +110,7 @@ let game: RetroShooterGame | null = null;
 let webcamStarted = false;
 let animationFrame = 0;
 let lastTime = performance.now();
+let faceMaskEnabled = false;
 
 async function bootstrap() {
   try {
@@ -124,16 +129,24 @@ async function bootstrap() {
 
 function mapInput(): CommandState {
   const frame = webcamStarted ? gestures.sample() : null;
+  const leftHand = frame?.hands.find((hand) => hand.handedness === 'Left');
+  const rightHand = frame?.hands.find((hand) => hand.handedness === 'Right');
+  const unknownHands = frame?.hands.filter((hand) => hand.handedness === 'Unknown') ?? [];
+  const fallbackLeft = leftHand ?? unknownHands[0];
+  const fallbackRight = rightHand ?? unknownHands[1];
   const keyboardTurn = (keyboard.turnRight ? 1 : 0) - (keyboard.turnLeft ? 1 : 0);
-  const activeGesture = frame?.gesture ?? 'No hand';
-  const forwardFromGesture = activeGesture === 'Point Up';
-  const turnFromGesture =
-    activeGesture === 'Point Left' ? -0.85 : activeGesture === 'Point Right' ? 0.85 : 0;
-  const fireFromGesture = activeGesture === 'Closed Fist';
+  const activeGesture = frame?.gesture ?? 'No hands';
+  const bothPointUp =
+    fallbackLeft?.gesture === 'Point Up' && fallbackRight?.gesture === 'Point Up';
+  const bothOpen =
+    fallbackLeft?.gesture === 'Open Palm' && fallbackRight?.gesture === 'Open Palm';
+  const leftTurn = fallbackLeft?.gesture === 'Closed Fist';
+  const rightTurn = fallbackRight?.gesture === 'Closed Fist';
+  const turnFromGesture = leftTurn ? -0.85 : rightTurn ? 0.85 : 0;
   const commands: CommandState = {
     hasHand: Boolean(frame?.hasHand),
-    forward: keyboard.forward || forwardFromGesture,
-    fire: keyboard.fire || fireFromGesture,
+    forward: keyboard.forward || bothPointUp,
+    fire: keyboard.fire || bothOpen,
     turn: clamp(turnFromGesture + keyboardTurn * 0.8, -1, 1),
     gesture: activeGesture,
     confidence: frame?.confidence ?? 0,
@@ -227,6 +240,28 @@ startButton.addEventListener('click', async () => {
 
 restartButton.addEventListener('click', () => {
   restartArena();
+});
+
+faceMaskButton.addEventListener('click', async () => {
+  const nextState = !faceMaskEnabled;
+  faceMaskButton.disabled = true;
+
+  try {
+    await gestures.setFaceMaskEnabled(nextState);
+    faceMaskEnabled = nextState;
+    faceMaskButton.textContent = `Face Mask: ${faceMaskEnabled ? 'On' : 'Off'}`;
+
+    if (webcamStarted) {
+      statusMessage.textContent = faceMaskEnabled
+        ? 'Gesture tracking is live. Face mask is on.'
+        : 'Gesture tracking is live. Face mask is off.';
+    }
+  } catch (error) {
+    statusMessage.textContent =
+      error instanceof Error ? error.message : 'Could not change face mask mode.';
+  } finally {
+    faceMaskButton.disabled = false;
+  }
 });
 
 window.addEventListener('keydown', (event) => {

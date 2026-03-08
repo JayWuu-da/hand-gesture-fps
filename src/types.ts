@@ -1,9 +1,18 @@
+export interface HandPose {
+  handedness: 'Left' | 'Right' | 'Unknown';
+  gesture: string;
+  confidence: number;
+  x: number;
+  y: number;
+}
+
 export interface GestureFrame {
   hasHand: boolean;
   x: number;
   y: number;
   gesture: string;
   confidence: number;
+  hands: HandPose[];
 }
 
 export interface CommandState {

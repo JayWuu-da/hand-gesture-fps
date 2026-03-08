@@ -1,21 +1,27 @@
 import {
+  FaceDetector,
   FilesetResolver,
   GestureRecognizer,
+  type Category,
+  type FaceDetectorResult,
   type GestureRecognizerResult,
 } from '@mediapipe/tasks-vision';
 
-import type { GestureFrame } from './types';
+import type { GestureFrame, HandPose } from './types';
 
 const WASM_ROOT = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
 const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-tasks/gesture_recognizer/gesture_recognizer.task';
+const FACE_MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
 
 const DEFAULT_FRAME: GestureFrame = {
   hasHand: false,
   x: 0.5,
   y: 0.5,
-  gesture: 'No hand',
+  gesture: 'No hands',
   confidence: 0,
+  hands: [],
 };
 
 type Landmark = GestureRecognizerResult['landmarks'][number][number];
@@ -24,10 +30,13 @@ export class GestureController {
   private readonly video: HTMLVideoElement;
   private readonly overlay: HTMLCanvasElement;
   private readonly overlayContext: CanvasRenderingContext2D;
+  private visionResolver: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>> | null = null;
   private recognizer: GestureRecognizer | null = null;
+  private faceDetector: FaceDetector | null = null;
   private stream: MediaStream | null = null;
   private lastVideoTime = -1;
   private frame: GestureFrame = DEFAULT_FRAME;
+  private faceMaskEnabled = false;
 
   constructor(video: HTMLVideoElement, overlay: HTMLCanvasElement) {
     this.video = video;
@@ -48,13 +57,13 @@ export class GestureController {
     }
 
     if (!this.recognizer) {
-      const vision = await FilesetResolver.forVisionTasks(WASM_ROOT);
+      const vision = await this.getVisionResolver();
       this.recognizer = await GestureRecognizer.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: MODEL_URL,
         },
         runningMode: 'VIDEO',
-        numHands: 1,
+        numHands: 2,
         minHandDetectionConfidence: 0.6,
         minHandPresenceConfidence: 0.6,
         minTrackingConfidence: 0.6,
@@ -94,6 +103,21 @@ export class GestureController {
     this.overlayContext.clearRect(0, 0, this.overlay.width, this.overlay.height);
   }
 
+  async setFaceMaskEnabled(enabled: boolean) {
+    if (enabled && !this.faceDetector) {
+      const vision = await this.getVisionResolver();
+      this.faceDetector = await FaceDetector.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: FACE_MODEL_URL,
+        },
+        runningMode: 'VIDEO',
+        minDetectionConfidence: 0.55,
+      });
+    }
+
+    this.faceMaskEnabled = enabled;
+  }
+
   sample() {
     if (
       !this.recognizer ||
@@ -110,32 +134,66 @@ export class GestureController {
     this.lastVideoTime = this.video.currentTime;
 
     const result = this.recognizer.recognizeForVideo(this.video, performance.now());
+    const faceResult =
+      this.faceMaskEnabled && this.faceDetector
+        ? this.faceDetector.detectForVideo(this.video, performance.now())
+        : null;
     this.frame = this.extractFrame(result);
-    this.drawOverlay(result, this.frame);
+    this.drawOverlay(result, faceResult, this.frame);
 
     return this.frame;
   }
 
   private extractFrame(result: GestureRecognizerResult): GestureFrame {
-    const hand = result.landmarks[0];
-    const topGesture = result.gestures[0]?.[0];
+    const hands = result.landmarks
+      .map((hand, index) => this.buildHandPose(hand, result.handedness[index]?.[0], result.gestures[index]?.[0]))
+      .filter((hand): hand is HandPose => Boolean(hand))
+      .sort(sortHands);
 
-    if (!hand) {
+    if (hands.length === 0) {
       return DEFAULT_FRAME;
     }
 
-    const wrist = hand[0];
-    const indexKnuckle = hand[5];
-    const x = clamp((wrist.x + indexKnuckle.x) / 2, 0, 1);
-    const y = clamp((wrist.y + indexKnuckle.y) / 2, 0, 1);
-    const interpretation = this.interpretHandPose(hand, topGesture?.categoryName, topGesture?.score);
+    const averageX = hands.reduce((sum, hand) => sum + hand.x, 0) / hands.length;
+    const averageY = hands.reduce((sum, hand) => sum + hand.y, 0) / hands.length;
+    const summary = hands
+      .map((hand) => `${hand.handedness[0]}:${hand.gesture}`)
+      .join(' | ');
+    const averageConfidence =
+      hands.reduce((sum, hand) => sum + hand.confidence, 0) / hands.length;
 
     return {
       hasHand: true,
-      x,
-      y,
+      x: averageX,
+      y: averageY,
+      gesture: summary,
+      confidence: averageConfidence,
+      hands,
+    };
+  }
+
+  private buildHandPose(
+    hand: GestureRecognizerResult['landmarks'][number] | undefined,
+    handedness?: Category,
+    modelGesture?: Category,
+  ): HandPose | null {
+    if (!hand) {
+      return null;
+    }
+
+    const wrist = hand[0];
+    const middleMcp = hand[9];
+    const x = clamp((wrist.x + middleMcp.x) / 2, 0, 1);
+    const y = clamp((wrist.y + middleMcp.y) / 2, 0, 1);
+    const interpretation = this.interpretHandPose(hand, modelGesture?.categoryName, modelGesture?.score);
+    const handLabel = normalizeHandedness(handedness?.categoryName);
+
+    return {
+      handedness: handLabel,
       gesture: interpretation.gesture,
       confidence: interpretation.confidence,
+      x,
+      y,
     };
   }
 
@@ -169,39 +227,22 @@ export class GestureController {
       };
     }
 
-    if (isolatedIndex) {
-      const directionX = indexTip.x - indexMcp.x;
-      const directionY = indexTip.y - indexMcp.y;
-      const horizontal = Math.abs(directionX);
-      const vertical = Math.abs(directionY);
-
-      if (directionY < -handScale * 0.45 && vertical > horizontal * 0.8) {
-        return {
-          gesture: 'Point Up',
-          confidence: clamp(0.72 + vertical / (handScale * 2.2), 0, 0.99),
-        };
-      }
-
-      if (directionX > handScale * 0.35 && horizontal > vertical * 0.9) {
-        return {
-          gesture: 'Point Right',
-          confidence: clamp(0.72 + horizontal / (handScale * 2.2), 0, 0.99),
-        };
-      }
-
-      if (directionX < -handScale * 0.35 && horizontal > vertical * 0.9) {
-        return {
-          gesture: 'Point Left',
-          confidence: clamp(0.72 + horizontal / (handScale * 2.2), 0, 0.99),
-        };
-      }
-    }
-
     if (modelGesture === 'Open_Palm') {
       return {
         gesture: 'Open Palm',
-        confidence: modelConfidence ?? 0.75,
+        confidence: modelConfidence ?? 0.8,
       };
+    }
+
+    if (isolatedIndex) {
+      const directionY = indexTip.y - indexMcp.y;
+
+      if (directionY < -handScale * 0.45) {
+        return {
+          gesture: 'Point Up',
+          confidence: clamp(0.72 + Math.abs(directionY) / (handScale * 2.2), 0, 0.99),
+        };
+      }
     }
 
     return {
@@ -235,46 +276,119 @@ export class GestureController {
     return distance(wrist, tip) < distance(wrist, mcp) + handScale * 0.15;
   }
 
-  private drawOverlay(result: GestureRecognizerResult, frame: GestureFrame) {
+  private drawOverlay(
+    result: GestureRecognizerResult,
+    faceResult: FaceDetectorResult | null,
+    frame: GestureFrame,
+  ) {
     this.overlayContext.clearRect(0, 0, this.overlay.width, this.overlay.height);
+
+    if (this.faceMaskEnabled && faceResult) {
+      faceResult.detections.forEach((detection) => {
+        const box = detection.boundingBox;
+
+        if (!box) {
+          return;
+        }
+
+        this.drawFaceMask(box.originX, box.originY, box.width, box.height);
+      });
+    }
 
     this.overlayContext.strokeStyle = 'rgba(255, 219, 77, 0.92)';
     this.overlayContext.fillStyle = 'rgba(255, 120, 74, 0.95)';
     this.overlayContext.lineWidth = 2;
 
-    const hand = result.landmarks[0];
+    result.landmarks.forEach((hand, handIndex) => {
+      hand.forEach((point) => {
+        const x = point.x * this.overlay.width;
+        const y = point.y * this.overlay.height;
+        this.overlayContext.beginPath();
+        this.overlayContext.arc(x, y, 4, 0, Math.PI * 2);
+        this.overlayContext.fill();
+      });
 
-    if (!hand) {
-      return;
-    }
-
-    for (const point of hand) {
-      const x = point.x * this.overlay.width;
-      const y = point.y * this.overlay.height;
       this.overlayContext.beginPath();
-      this.overlayContext.arc(x, y, 4, 0, Math.PI * 2);
-      this.overlayContext.fill();
-    }
+      hand.forEach((point, index) => {
+        const x = point.x * this.overlay.width;
+        const y = point.y * this.overlay.height;
 
-    this.overlayContext.beginPath();
-    hand.forEach((point, index) => {
-      const x = point.x * this.overlay.width;
-      const y = point.y * this.overlay.height;
+        if (index === 0) {
+          this.overlayContext.moveTo(x, y);
+        } else {
+          this.overlayContext.lineTo(x, y);
+        }
+      });
+      this.overlayContext.stroke();
 
-      if (index === 0) {
-        this.overlayContext.moveTo(x, y);
-      } else {
-        this.overlayContext.lineTo(x, y);
+      const pose = frame.hands[handIndex];
+
+      if (pose) {
+        this.overlayContext.fillStyle = 'rgba(7, 5, 9, 0.72)';
+        this.overlayContext.fillRect(10, 10 + handIndex * 32, 190, 24);
+        this.overlayContext.fillStyle = '#ffd94d';
+        this.overlayContext.font = '14px "Lucida Console", monospace';
+        this.overlayContext.fillText(
+          `${pose.handedness}: ${pose.gesture}`,
+          18,
+          27 + handIndex * 32,
+        );
       }
     });
-    this.overlayContext.stroke();
-
-    this.overlayContext.fillStyle = 'rgba(7, 5, 9, 0.72)';
-    this.overlayContext.fillRect(10, 10, 170, 28);
-    this.overlayContext.fillStyle = '#ffd94d';
-    this.overlayContext.font = '16px "Lucida Console", monospace';
-    this.overlayContext.fillText(frame.gesture, 18, 29);
   }
+
+  private drawFaceMask(originX: number, originY: number, width: number, height: number) {
+    const blockSize = 10;
+    const startX = Math.max(0, originX - width * 0.1);
+    const startY = Math.max(0, originY - height * 0.18);
+    const maskWidth = Math.min(this.overlay.width - startX, width * 1.2);
+    const maskHeight = Math.min(this.overlay.height - startY, height * 1.35);
+
+    this.overlayContext.save();
+    this.overlayContext.fillStyle = 'rgba(8, 6, 14, 0.9)';
+    this.overlayContext.fillRect(startX, startY, maskWidth, maskHeight);
+
+    for (let y = startY; y < startY + maskHeight; y += blockSize) {
+      for (let x = startX; x < startX + maskWidth; x += blockSize) {
+        const shade = ((Math.floor(x / blockSize) + Math.floor(y / blockSize)) % 2) === 0;
+        this.overlayContext.fillStyle = shade
+          ? 'rgba(255, 215, 120, 0.22)'
+          : 'rgba(255, 110, 70, 0.22)';
+        this.overlayContext.fillRect(x, y, blockSize - 1, blockSize - 1);
+      }
+    }
+
+    this.overlayContext.strokeStyle = 'rgba(255, 217, 110, 0.9)';
+    this.overlayContext.lineWidth = 2;
+    this.overlayContext.strokeRect(startX, startY, maskWidth, maskHeight);
+    this.overlayContext.restore();
+  }
+
+  private async getVisionResolver() {
+    if (!this.visionResolver) {
+      this.visionResolver = await FilesetResolver.forVisionTasks(WASM_ROOT);
+    }
+
+    return this.visionResolver;
+  }
+}
+
+function normalizeHandedness(label?: string): HandPose['handedness'] {
+  if (label === 'Left' || label === 'Right') {
+    return label;
+  }
+
+  return 'Unknown';
+}
+
+function sortHands(left: HandPose, right: HandPose) {
+  const priority = {
+    Left: 0,
+    Right: 1,
+    Unknown: 2,
+  };
+
+  return priority[left.handedness] - priority[right.handedness];
 }
 
 function clamp(value: number, min: number, max: number) {

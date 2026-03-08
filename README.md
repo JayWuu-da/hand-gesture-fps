@@ -8,17 +8,18 @@ playtesting, and personal/demo use only.
 
 ## What this project does
 
-- Uses a webcam to read one-hand gestures
+- Uses a webcam to read gesture input from one or two hands
 - Lets the player move and attack in a retro FPS scene
 - Uses a small subset of Freedoom art assets for the current visual style
+- Can optionally cover the face area in the webcam preview with a toggleable face mask
 
 ## Current gesture controls
 
-- `Point Up`: move forward
-- `Point Left`: turn left
-- `Point Right`: turn right
-- `Closed Fist`: fire
-- `Open Palm`: stop player movement and turning
+- `Left hand closed fist`: turn left
+- `Right hand closed fist`: turn right
+- `Both hands point up`: move forward
+- `Both hands open palm`: continuous fire
+- Any other mixed pose: stop gesture-driven movement and turning
 
 Development fallback controls:
 
