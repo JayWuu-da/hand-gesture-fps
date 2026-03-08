@@ -18,6 +18,7 @@ export class SecretTechniqueController {
   private fusionCharge = 0;
   private fusionBaseline: number | null = null;
   private purpleCharge = 0;
+  private purpleLatched = false;
   private cooldown = 0;
   private lastRightDepth: number | null = null;
 
@@ -27,6 +28,7 @@ export class SecretTechniqueController {
     this.fusionCharge = 0;
     this.fusionBaseline = null;
     this.purpleCharge = 0;
+    this.purpleLatched = false;
     this.cooldown = 0;
     this.lastRightDepth = null;
   }
@@ -52,6 +54,35 @@ export class SecretTechniqueController {
       this.purpleCharge = Math.max(0, this.purpleCharge - deltaSeconds * 2.6);
 
       return this.buildState('cooldown', 'Technique spent', false, leftHand, rightHand);
+    }
+
+    if (this.purpleLatched) {
+      this.akaCharge = 0;
+      this.aoCharge = 0;
+      this.fusionCharge = 0;
+      this.fusionBaseline = null;
+
+      if (rightSeal) {
+        this.purpleCharge = Math.min(1, this.purpleCharge + deltaSeconds * 1.7);
+      } else {
+        this.purpleCharge = Math.max(0, this.purpleCharge - deltaSeconds * 1.9);
+      }
+
+      const fired = this.purpleCharge > 0.2 && (rightOpen || forwardThrust);
+
+      if (fired) {
+        this.purpleLatched = false;
+        this.purpleCharge = 0;
+        this.cooldown = 1.2;
+        return this.buildState('purple', 'Secret violet discharge', true, leftHand, rightHand);
+      }
+
+      if (this.purpleCharge <= 0.02) {
+        this.purpleLatched = false;
+        return { ...EMPTY_TECHNIQUE };
+      }
+
+      return this.buildState('purple', 'Purple pressure building', false, leftHand, rightHand);
     }
 
     if (leftSeal) {
@@ -86,35 +117,15 @@ export class SecretTechniqueController {
     const canFuse = canTrackFusion && reducedEnough;
 
     if (canFuse) {
-      this.fusionCharge = Math.min(1, this.fusionCharge + deltaSeconds * 2.4);
-    } else {
-      this.fusionCharge = Math.max(0, this.fusionCharge - deltaSeconds * 0.95);
-    }
-
-    const canChargePurple = this.fusionCharge > 0.24 && !leftSeal && rightSeal;
-
-    if (canChargePurple) {
-      this.purpleCharge = Math.min(1, this.purpleCharge + deltaSeconds * 1.55);
-      this.akaCharge = Math.max(this.akaCharge, 0.42);
-      this.aoCharge = Math.max(this.aoCharge, 0.42);
-    } else {
-      this.purpleCharge = Math.max(0, this.purpleCharge - deltaSeconds * 1.45);
-    }
-
-    const fired = this.purpleCharge > 0.56 && (rightOpen || forwardThrust);
-
-    if (fired) {
+      this.purpleLatched = true;
       this.akaCharge = 0;
       this.aoCharge = 0;
       this.fusionCharge = 0;
       this.fusionBaseline = null;
-      this.purpleCharge = 0;
-      this.cooldown = 1.2;
-      return this.buildState('purple', 'Secret violet discharge', true, leftHand, rightHand);
-    }
-
-    if (this.purpleCharge > 0.05) {
+      this.purpleCharge = Math.max(this.purpleCharge, 0.38);
       return this.buildState('purple', 'Purple pressure building', false, leftHand, rightHand);
+    } else {
+      this.fusionCharge = Math.max(0, this.fusionCharge - deltaSeconds * 0.95);
     }
 
     if (this.fusionCharge > 0.08) {
